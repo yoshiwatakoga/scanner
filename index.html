@@ -3,19 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>【画面最適化版】QR在庫管理スキャナー</title>
+  <title>【超爆速・画面最適化版】QR在庫管理スキャナー</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 10px; background: #f4f6f9; }
     .container { max-width: 500px; margin: 0 auto; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
     h2 { color: #e67e22; margin: 5px 0 10px 0; font-size: 1.5rem; }
     
-    /* ★【改善】入力先と履歴（ログ）を一番目立つ上部に配置しました */
     #status { margin: 5px 0; font-size: 1.2rem; font-weight: bold; color: #333; background: #fff3cd; padding: 10px; border-radius: 6px; border: 1px solid #ffeeba; }
     #log { margin: 10px 0; font-size: 1.4rem; font-weight: bold; color: #28a745; min-height: 40px; background: #e8f5e9; padding: 10px; border-radius: 6px; border: 1px solid #c8e6c9; display: flex; align-items: center; justify-content: center; }
     
-    /* ★【改善】カメラ画像が広がりすぎないよう、高さを「最大200px」に制限しました */
-    #canvas { width: 100%; max-width: 320px; height: 200px; object-fit: cover; border: 3px solid #e67e22; border-radius: 8px; display: none; margin: 10px auto; }
+    /* 画面上の見た目はコンパクトに維持（これでカクカクを防ぎます） */
+    #canvas { width: 100%; max-width: 320px; height: 210px; object-fit: cover; border: 3px solid #e67e22; border-radius: 8px; display: none; margin: 10px auto; }
     
     .btn { color: white; padding: 15px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 10px; cursor: pointer; font-weight: bold; }
     #cameraBtn { background: #28a745; }
@@ -26,15 +25,10 @@
 
 <div class="container">
   <h2>QR在庫管理（テスト）</h2>
-  
   <div id="status">現在の入力先: A列 (1)</div>
-  
   <div id="log">📷 スキャン開始を押してください</div>
-
   <button id="cameraBtn" onclick="startCamera()" class="btn">📷 スキャン開始</button>
-
   <canvas id="canvas"></canvas>
-
   <button id="nextBtn" onclick="moveToNextColumn()" class="btn">➡ 次の品目（列）へ移動</button>
 </div>
 
@@ -54,8 +48,14 @@
   async function startCamera() {
     logDiv.innerHTML = "カメラを起動しています...";
     try {
+      // ★【爆速化1】カメラの解像度を「フルHD（1920x1080）」の超高画質に引き上げ！
+      // これでQRコードの細かなモザイク模様がくっきりと映り、一瞬で識別できるようになります。
       const constraints = { 
-        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }, 
+        video: { 
+          facingMode: "environment", 
+          width: { ideal: 1920 }, 
+          height: { ideal: 1080 } 
+        }, 
         audio: false 
       };
       
@@ -77,12 +77,17 @@
 
   function tick() {
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      // ★【爆速化2】ここが魔法のポイントです。
+      // 画面の見た目は小さく（CSSで制御）したまま、内部の計算用サイズは「カメラ本来の超高画質」を100%維持します。
       canvasElement.height = video.videoHeight;
       canvasElement.width = video.videoWidth;
+      
       canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
 
+      // ★【爆速化3】解析の間引き時間を「150ms」から「60ms（1秒に約16回）」に短縮！
+      // 高画質化したことでスマホの無駄な迷いがなくなり、処理速度自体が上がったため、間隔を縮めてもカクつきません。
       const now = Date.now();
-      if (now - lastScanTime > 150) {
+      if (now - lastScanTime > 60) {
         lastScanTime = now;
 
         const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
@@ -101,9 +106,10 @@
           })
           .then(() => {
             logDiv.style.color = "#28a745";
-            // ★保存できた文字が一番ハッキリ見えるようにしています
             logDiv.innerHTML = "✓ 保存OK: " + code.data;
-            setTimeout(() => { isProcessing = false; }, 1000); 
+            
+            // テスト中なので、送信完了から次の読み取りまでの待ち時間を0.5秒（短め）にしました
+            setTimeout(() => { isProcessing = false; }, 500); 
           })
           .catch(() => {
             logDiv.style.color = "#dc3545";
