@@ -3,23 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>超速QR在庫管理スキャナー</title>
+  <title>【テスト用】超速QR在庫管理スキャナー</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 15px; background: #f4f6f9; }
     .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    h2 { color: #1a73e8; margin-top: 0; }
-    #canvas { width: 100%; max-width: 400px; border: 3px solid #1a73e8; border-radius: 8px; display: none; margin: 10px auto; }
+    h2 { color: #e67e22; margin-top: 0; } /* テスト中と分かりやすいようにオレンジ色にしました */
+    #canvas { width: 100%; max-width: 400px; border: 3px solid #e67e22; border-radius: 8px; display: none; margin: 10px auto; }
     .btn { color: white; padding: 20px; font-size: 1.3rem; border: none; border-radius: 10px; width: 100%; margin-top: 15px; cursor: pointer; font-weight: bold; }
     #cameraBtn { background: #28a745; }
     #nextBtn { background: #1a73e8; }
-    #status { margin: 15px 0; font-size: 1.3rem; font-weight: bold; color: #333; background: #e8f0fe; padding: 12px; border-radius: 6px; }
+    #status { margin: 15px 0; font-size: 1.3rem; font-weight: bold; color: #333; background: #fff3cd; padding: 12px; border-radius: 6px; border: 1px solid #ffeeba; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>QR在庫管理スキャナー</h2>
+  <h2>QR在庫管理スキャナー（テストモード）</h2>
   <div id="status">現在の入力先: A列 (1)</div>
   <button id="cameraBtn" onclick="startCamera()" class="btn">📷 スキャン開始</button>
   <canvas id="canvas"></canvas>
@@ -28,31 +28,27 @@
 </div>
 
 <script>
-  // 教えていただいたGASのURLをあらかじめ設定してあります
+  // GASのURL
   const GAS_URL = "https://script.google.com/a/macros/yoshifuku-unso.com/s/AKfycbw-BBGgev0lOZCKI_Vul073Z3QAQ-KBR-RBvBZQEkf--BaQIIupksPhzhE9bs30slwl/exec";
 
   const video = document.createElement("video");
   const canvasElement = document.getElementById("canvas");
-  
-  // 高速化設定（willReadFrequently: true）を有効化
   const canvas = canvasElement.getContext("2d", { willReadFrequently: true });
   
   const logDiv = document.getElementById("log");
   const statusDiv = document.getElementById("status");
   let currentColumn = 1; 
-  let lastReadCode = ""; 
-  let isProcessing = false; // 重複送信ガード
+  let isProcessing = false; // 送信中の重複連打だけは防ぎます
 
   async function startCamera() {
     logDiv.innerHTML = "カメラを起動しています...";
     try {
-      // 読み取りに最適な解像度と高フレームレート(FPS)を要求
       const constraints = { 
         video: { 
           facingMode: "environment",
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          frameRate: { ideal: 60, max: 60 } // 可能なら60fps、最高速度を要求
+          frameRate: { ideal: 60, max: 60 }
         }, 
         audio: false 
       };
@@ -65,9 +61,8 @@
       document.getElementById("cameraBtn").style.display = "none";
       canvasElement.style.display = "block";
       
-      // アニメーションループ起動
       requestAnimationFrame(tick);
-      logDiv.innerHTML = "✓ バーコード・QRを映してください。";
+      logDiv.innerHTML = "✓ 【テスト中】同じQRコードも連続で読み込めます。";
     } catch (err) {
       alert("ブラウザのカメラ使用を許可してください。");
       logDiv.innerHTML = "❌ 起動失敗: " + err.name;
@@ -79,19 +74,16 @@
       canvasElement.height = video.videoHeight;
       canvasElement.width = video.videoWidth;
       
-      // カメラ映像を高速でキャンバスに描画
       canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-      
       const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
       
-      // QRコードの超速解析を実行
+      // QRコードの解析
       const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
 
-      if (code && code.data !== lastReadCode && !isProcessing) {
-        lastReadCode = code.data;
-        isProcessing = true; 
+      // ★同じQRの弾く機能を休止しました。通信中でなければいつでも読み込みます。
+      if (code && !isProcessing) {
+        isProcessing = true; // 送信ロック
         
-        // 読み取り成功時にスマホを「ブッ」と短く振動させる（対応機種のみ）
         if (navigator.vibrate) navigator.vibrate(100);
 
         logDiv.style.color = "#1a73e8";
@@ -100,4 +92,29 @@
         // GASへデータを送信
         fetch(GAS_URL, {
           method: "POST",
-          body: JSON.
+          body: JSON.stringify({ qrValue: code.data, col: currentColumn })
+        })
+        .then(() => {
+          logDiv.style.color = "#28a745";
+          logDiv.innerHTML = "✓ 保存完了: " + code.data;
+          
+          // 送信が終わったら、少しだけ間をあけて即座に次の読み取りを可能にする
+          setTimeout(() => { isProcessing = false; }, 1000); 
+        })
+        .catch(() => {
+          logDiv.style.color = "#dc3545";
+          logDiv.innerHTML = "❌ 送信失敗。";
+          isProcessing = false; 
+        });
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function moveToNextColumn() {
+    currentColumn++;
+    statusDiv.innerHTML = "現在の入力先: " + String.fromCharCode(64 + currentColumn) + "列 (" + currentColumn + ")";
+  }
+</script>
+</body>
+</html>
