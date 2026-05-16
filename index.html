@@ -3,32 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>【テスト用】超速QR在庫管理スキャナー</title>
+  <title>【画面最適化版】QR在庫管理スキャナー</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; margin: 0; padding: 15px; background: #f4f6f9; }
-    .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    h2 { color: #e67e22; margin-top: 0; } /* テスト中と分かりやすいようにオレンジ色にしました */
-    #canvas { width: 100%; max-width: 400px; border: 3px solid #e67e22; border-radius: 8px; display: none; margin: 10px auto; }
-    .btn { color: white; padding: 20px; font-size: 1.3rem; border: none; border-radius: 10px; width: 100%; margin-top: 15px; cursor: pointer; font-weight: bold; }
+    body { font-family: sans-serif; text-align: center; margin: 0; padding: 10px; background: #f4f6f9; }
+    .container { max-width: 500px; margin: 0 auto; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
+    h2 { color: #e67e22; margin: 5px 0 10px 0; font-size: 1.5rem; }
+    
+    /* ★【改善】入力先と履歴（ログ）を一番目立つ上部に配置しました */
+    #status { margin: 5px 0; font-size: 1.2rem; font-weight: bold; color: #333; background: #fff3cd; padding: 10px; border-radius: 6px; border: 1px solid #ffeeba; }
+    #log { margin: 10px 0; font-size: 1.4rem; font-weight: bold; color: #28a745; min-height: 40px; background: #e8f5e9; padding: 10px; border-radius: 6px; border: 1px solid #c8e6c9; display: flex; align-items: center; justify-content: center; }
+    
+    /* ★【改善】カメラ画像が広がりすぎないよう、高さを「最大200px」に制限しました */
+    #canvas { width: 100%; max-width: 320px; height: 200px; object-fit: cover; border: 3px solid #e67e22; border-radius: 8px; display: none; margin: 10px auto; }
+    
+    .btn { color: white; padding: 15px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 10px; cursor: pointer; font-weight: bold; }
     #cameraBtn { background: #28a745; }
     #nextBtn { background: #1a73e8; }
-    #status { margin: 15px 0; font-size: 1.3rem; font-weight: bold; color: #333; background: #fff3cd; padding: 12px; border-radius: 6px; border: 1px solid #ffeeba; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>QR在庫管理スキャナー（テストモード）</h2>
+  <h2>QR在庫管理（テスト）</h2>
+  
   <div id="status">現在の入力先: A列 (1)</div>
+  
+  <div id="log">📷 スキャン開始を押してください</div>
+
   <button id="cameraBtn" onclick="startCamera()" class="btn">📷 スキャン開始</button>
+
   <canvas id="canvas"></canvas>
+
   <button id="nextBtn" onclick="moveToNextColumn()" class="btn">➡ 次の品目（列）へ移動</button>
-  <div id="log" style="margin-top:15px; font-weight:bold; color:#28a745;"></div>
 </div>
 
 <script>
-  // GASのURL
   const GAS_URL = "https://script.google.com/a/macros/yoshifuku-unso.com/s/AKfycbw-BBGgev0lOZCKI_Vul073Z3QAQ-KBR-RBvBZQEkf--BaQIIupksPhzhE9bs30slwl/exec";
 
   const video = document.createElement("video");
@@ -38,18 +48,14 @@
   const logDiv = document.getElementById("log");
   const statusDiv = document.getElementById("status");
   let currentColumn = 1; 
-  let isProcessing = false; // 送信中の重複連打だけは防ぎます
+  let isProcessing = false; 
+  let lastScanTime = 0; 
 
   async function startCamera() {
     logDiv.innerHTML = "カメラを起動しています...";
     try {
       const constraints = { 
-        video: { 
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 60, max: 60 }
-        }, 
+        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }, 
         audio: false 
       };
       
@@ -62,7 +68,7 @@
       canvasElement.style.display = "block";
       
       requestAnimationFrame(tick);
-      logDiv.innerHTML = "✓ 【テスト中】同じQRコードも連続で読み込めます。";
+      logDiv.innerHTML = "✓ QRコードを映してください";
     } catch (err) {
       alert("ブラウザのカメラ使用を許可してください。");
       logDiv.innerHTML = "❌ 起動失敗: " + err.name;
@@ -73,39 +79,38 @@
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       canvasElement.height = video.videoHeight;
       canvasElement.width = video.videoWidth;
-      
       canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-      const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-      
-      // QRコードの解析
-      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
 
-      // ★同じQRの弾く機能を休止しました。通信中でなければいつでも読み込みます。
-      if (code && !isProcessing) {
-        isProcessing = true; // 送信ロック
-        
-        if (navigator.vibrate) navigator.vibrate(100);
+      const now = Date.now();
+      if (now - lastScanTime > 150) {
+        lastScanTime = now;
 
-        logDiv.style.color = "#1a73e8";
-        logDiv.innerHTML = "シートに書き込み中...";
+        const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
 
-        // GASへデータを送信
-        fetch(GAS_URL, {
-          method: "POST",
-          body: JSON.stringify({ qrValue: code.data, col: currentColumn })
-        })
-        .then(() => {
-          logDiv.style.color = "#28a745";
-          logDiv.innerHTML = "✓ 保存完了: " + code.data;
-          
-          // 送信が終わったら、少しだけ間をあけて即座に次の読み取りを可能にする
-          setTimeout(() => { isProcessing = false; }, 1000); 
-        })
-        .catch(() => {
-          logDiv.style.color = "#dc3545";
-          logDiv.innerHTML = "❌ 送信失敗。";
-          isProcessing = false; 
-        });
+        if (code && !isProcessing) {
+          isProcessing = true; 
+          if (navigator.vibrate) navigator.vibrate(100);
+
+          logDiv.style.color = "#1a73e8";
+          logDiv.innerHTML = "⏳ 書き込み中...";
+
+          fetch(GAS_URL, {
+            method: "POST",
+            body: JSON.stringify({ qrValue: code.data, col: currentColumn })
+          })
+          .then(() => {
+            logDiv.style.color = "#28a745";
+            // ★保存できた文字が一番ハッキリ見えるようにしています
+            logDiv.innerHTML = "✓ 保存OK: " + code.data;
+            setTimeout(() => { isProcessing = false; }, 1000); 
+          })
+          .catch(() => {
+            logDiv.style.color = "#dc3545";
+            logDiv.innerHTML = "❌ 送信失敗";
+            isProcessing = false; 
+          });
+        }
       }
     }
     requestAnimationFrame(tick);
