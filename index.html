@@ -3,76 +3,80 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【完全修正版】QR在庫管理スキャナー</title>
+  <title>【切り抜き特化版】QR在庫管理</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; margin: 0; padding: 10px; background: #f4f6f9; touch-action: manipulation; }
-    .container { max-width: 500px; margin: 0 auto; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
-    h2 { color: #2c3e50; margin: 5px 0 10px 0; font-size: 1.5rem; }
+    body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; }
+    .container { max-width: 500px; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
     
-    #status { margin: 5px 0; font-size: 1.1rem; font-weight: bold; color: #333; background: #fff3cd; padding: 8px; border-radius: 6px; border: 1px solid #ffeeba; }
-    #log { margin: 8px 0; font-size: 1.3rem; font-weight: bold; color: #1a73e8; min-height: 44px; background: #e8f5e9; padding: 8px; border-radius: 6px; border: 1px solid #c8e6c9; display: flex; align-items: center; justify-content: center; word-break: break-all; }
+    .top-info { display: flex; justify-content: space-between; align-items: center; background: #fff3cd; padding: 6px 12px; border-radius: 6px; border: 1px solid #ffeeba; font-weight: bold; font-size: 1rem; margin-bottom: 5px; }
+    #log { margin: 5px 0; font-size: 1.1rem; font-weight: bold; color: #1a73e8; min-height: 38px; background: #e8f5e9; padding: 6px; border-radius: 6px; border: 1px solid #c8e6c9; display: flex; align-items: center; justify-content: center; }
     
-    /* === カメラ表示エリアの完全修正 === */
+    /* === 【改善】表示領域をコンパクトにし、履歴のためのスペースを確保 === */
     .camera-wrapper {
       position: relative;
       width: 100%;
-      max-width: 360px;
-      margin: 10px auto;
+      max-width: 320px; /* 少しスリムに */
+      margin: 5px auto;
       display: none;
-      border-radius: 10px;
+      border-radius: 8px;
       border: 3px solid #2c3e50;
       background: #000;
       box-sizing: border-box;
+      
+      /* ★上下の余計な表示をカットするために高さを制限（綺麗な正方形〜少し横長に見えるサイズ） */
+      aspect-ratio: 4 / 3; 
+      overflow: hidden; 
     }
     
     #canvas {
       width: 100%;
-      height: auto; /* 縦幅を固定せず、横幅に合わせて自動計算（これで絶対に潰れません） */
+      height: 100%;
+      object-fit: cover; /* 枠に合わせてピッタリ配置 */
       display: block;
-      aspect-ratio: auto; /* カメラ本来の比率を維持 */
     }
     
+    /* 狙いを定めやすい200pxの正方形ガイド枠 */
     .qr-guide-overlay {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 180px; 
-      height: 180px;
-      border: 6px dashed #e67e22; 
-      border-radius: 15px;
+      width: 200px; 
+      height: 200px;
+      border: 5px dashed #e67e22; 
+      border-radius: 10px;
       opacity: 0.9;
       pointer-events: none;
       box-sizing: border-box;
-      /* 暗くするエフェクトは完全に削除されています */
     }
     /* ================================== */
     
-    .btn { color: white; padding: 15px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 10px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
-    #cameraBtn { background: #28a745; }
-    #nextBtn { background: #1a73e8; margin-top: 10px; }
+    .btn { color: white; padding: 14px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 8px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
     
-    #scanTriggerBtn { background: #e67e22; padding: 18px; font-size: 1.4rem; display: none; box-shadow: 0 4px 15px rgba(230,126,34,0.5); }
+    #scanTriggerBtn { background: #e67e22; padding: 16px; font-size: 1.4rem; display: none; box-shadow: 0 4px 15px rgba(230,126,34,0.5); }
     #scanTriggerBtn:active { background: #d35400; transform: scale(0.98); }
     
-    .history-container { margin-top: 15px; text-align: left; background: #2c3e50; color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; }
-    .history-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid #34495e; padding-bottom: 3px; color: #bdc3c7; }
-    #historyList { max-height: 120px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 0; margin: 0; list-style: none; }
-    #historyList li { padding: 4px 0; border-bottom: 1px solid #34495e; line-height: 1.2; }
+    /* === 【改善】カメラが縮んだ分、履歴エリアをグッと広げて見やすく === */
+    .history-container { margin-top: 12px; text-align: left; background: #2c3e50; color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; }
+    .history-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid #34495e; padding-bottom: 4px; color: #bdc3c7; }
+    #historyList { max-height: 160px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 0; margin: 0; list-style: none; }
+    #historyList li { padding: 5px 0; border-bottom: 1px solid #34495e; line-height: 1.3; }
     .history-ok { color: #2ecc71; }
     .history-ng { color: #e74c3c; }
     .history-wait { color: #f1c40f; }
 
-    .version-info { margin-top: 15px; font-size: 0.75rem; color: #7f8c8d; text-align: center; }
+    .version-info { margin-top: 10px; font-size: 0.7rem; color: #7f8c8d; text-align: center; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>QR在庫管理（Ver1.14）</h2>
+  <div class="top-info">
+    <span id="status">入力先: A列 (1)</span>
+    <button onclick="moveToNextColumn()" style="background:#1a73e8; color:white; border:none; padding:5px 10px; border-radius:4px; font-weight:bold; font-size:0.85rem;">➡ 次の列</button>
+  </div>
   
-  <div id="status">入力先: A列 (1)</div>
   <div id="log">📷 最初にカメラを起動してください</div>
 
   <button id="cameraBtn" onclick="startCamera()" class="btn">📷 カメラを起動する</button>
@@ -83,10 +87,9 @@
   </div>
 
   <button id="scanTriggerBtn" onclick="takeSnapshotAndScan()" class="btn">📸 枠に合わせてスキャン！</button>
-  <button id="nextBtn" onclick="moveToNextColumn()" class="btn">➡ 次の品目へ移動</button>
   
   <div class="history-container">
-    <div class="history-title">⏱ リアルタイム動作履歴（新しい順）</div>
+    <div class="history-title">⏱ 履歴（新しい順・枠内のみ解析）</div>
     <ul id="historyList">
       <li style="color:#bdc3c7;">履歴はここに表示されます</li>
     </ul>
@@ -96,13 +99,14 @@
 </div>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.14 (比率完全修正版)";
+  const VERSION_TEXT = "バージョン: Ver 1.16 (ガイド枠内クロップ解析版)";
   const GAS_URL = "https://script.google.com/a/macros/yoshifuku-unso.com/s/AKfycbw-BBGgev0lOZCKI_Vul073Z3QAQ-KBR-RBvBZQEkf--BaQIIupksPhzhE9bs30slwl/exec";
 
   const video = document.createElement("video");
   const canvasElement = document.getElementById("canvas");
   const canvas = canvasElement.getContext("2d", { willReadFrequently: true });
   
+  // 切り抜き写真用の隠しキャンバス
   const hiddenCanvas = document.createElement("canvas");
   const hiddenCtx = hiddenCanvas.getContext("2d", { willReadFrequently: true });
   
@@ -155,17 +159,15 @@
       document.getElementById("scanTriggerBtn").style.display = "block"; 
       
       requestAnimationFrame(renderVideoOnly);
-      logDiv.innerHTML = "✓ オレンジの枠にQRを合わせてボタンを押してね";
+      logDiv.innerHTML = "✓ オレンジの枠にQRを合わせてね";
     } catch (err) {
       alert("ブラウザのカメラ使用を許可してください。");
       logDiv.innerHTML = "❌ 起動失敗: " + err.name;
     }
   }
 
-  // ★画面表示用ループ（カメラの生の縦横比をそのまま自動適用させます）
   function renderVideoOnly() {
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      // 固定値にせず、カメラ映像が持っている本来の幅・高さをそのまま100%セット
       canvasElement.width = video.videoWidth;
       canvasElement.height = video.videoHeight;
       canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
@@ -173,14 +175,28 @@
     requestAnimationFrame(renderVideoOnly);
   }
 
+  // ★【核心の修正】ボタンが押されたとき、ガイド枠の範囲だけを計算して切り抜く
   function takeSnapshotAndScan() {
     if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
 
-    hiddenCanvas.width = video.videoWidth;
-    hiddenCanvas.height = video.videoHeight;
-    hiddenCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+    const vWidth = video.videoWidth;
+    const vHeight = video.videoHeight;
 
-    const imageData = hiddenCtx.getImageData(0, 0, hiddenCanvas.width, hiddenCanvas.height);
+    // カメラの全画面に対する「オレンジ枠（正方形）」の比率から、切り抜きサイズを逆算
+    // 画面中央から、短辺（通常は縦幅）の約60%のサイズを正方形として切り抜く
+    const cropSize = Math.min(vWidth, vHeight) * 0.6;
+    const cropX = (vWidth - cropSize) / 2;
+    const cropY = (vHeight - cropSize) / 2;
+
+    // 隠しキャンバスを正方形にする
+    hiddenCanvas.width = cropSize;
+    hiddenCanvas.height = cropSize;
+    
+    // 全体画像から中央の正方形部分だけをチョキッと切り抜いてコピー
+    hiddenCtx.drawImage(video, cropX, cropY, cropSize, cropSize, 0, 0, cropSize, cropSize);
+
+    // 切り抜いた「QRコードだけの純粋な正方形写真」を解析
+    const imageData = hiddenCtx.getImageData(0, 0, cropSize, cropSize);
     const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
 
     if (code && code.data.trim() !== "") {
@@ -195,7 +211,7 @@
       if (navigator.vibrate) navigator.vibrate([40, 40]); 
       logDiv.style.color = "#dc3545";
       logDiv.innerHTML = "❌ QRコードが見つかりません";
-      addHistoryLog("❌ NG: QRが見つかりません (撮り直し)", "ng");
+      addHistoryLog("❌ NG: 枠内にQRがありません", "ng");
     }
   }
 
@@ -227,7 +243,6 @@
     });
   }
 
-  // 画面中央のメイン表示
   function updateStatusDisplay() {
     if (sendQueue.length > 0) {
       logDiv.style.color = "#e67e22";
