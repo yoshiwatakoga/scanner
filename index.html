@@ -3,18 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【大画面・離して読める版】QR在庫管理</title>
+  <title>【離して読めるオート版】QR在庫管理</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; }
     .container { max-width: 500px; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
     
     .top-info { display: flex; justify-content: space-between; align-items: center; background: #fff3cd; padding: 6px 12px; border-radius: 6px; border: 1px solid #ffeeba; font-weight: bold; font-size: 1rem; margin-bottom: 5px; }
-    #log { margin: 5px 0; font-size: 1.05rem; font-weight: bold; color: #1a73e8; min-height: 50px; background: #e8f5e9; padding: 6px; border-radius: 6px; border: 1px solid #c8e6c9; display: flex; align-items: center; justify-content: center; line-height: 1.3; }
     
+    /* ログ・動くアイコン表示エリア */
+    #log-container {
+      margin: 5px 0;
+      min-height: 65px;
+      background: #e8f5e9;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #c8e6c9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+    }
+    #log-text { font-size: 1.05rem; font-weight: bold; color: #1a73e8; text-align: left; line-height: 1.3; }
+    
+    /* 超軽量CSSアニメーションアイコン */
+    .icon-box { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 2rem; position: relative; }
+    
+    /* 離して読めるため、前後の動きを少しマイルドに調整 */
+    @keyframes zoomInOut {
+      0% { transform: scale(0.9); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(0.9); }
+    }
+    .icon-zoom { animation: zoomInOut 1.2s infinite ease-in-out; }
+    
+    @keyframes blink {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+    .icon-blink { animation: blink 1s infinite ease-in-out; }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .icon-bounce { animation: bounce 0.4s infinite ease-in-out; }
+
     .camera-wrapper {
       position: relative;
-      width: 100%; 
+      width: 100%;
+      max-width: 320px;
       margin: 5px auto;
       display: none;
       border-radius: 8px;
@@ -25,44 +63,34 @@
       overflow: hidden; 
     }
     
-    #canvas {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
+    #canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
     
-    /* ガイド枠のサイズとスタイル（レーザー線削除済み） */
+    /* ガイド枠（緑のレーザー線は完全に削除しました） */
     .qr-guide-overlay {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 260px; 
-      height: 260px;
-      border: 6px dashed #e67e22; 
+      width: 200px; 
+      height: 200px;
+      border: 5px dashed #e67e22; 
       border-radius: 10px;
       opacity: 0.9;
       pointer-events: none;
       box-sizing: border-box;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, background-color 0.2s;
     }
     
-    /* スキャン成功時に枠を一瞬緑にする */
-    .qr-guide-overlay.success { border-color: #2ecc71; background: rgba(46, 204, 113, 0.1); }
+    /* 成功時に枠を緑にする */
+    .qr-guide-overlay.success { border-color: #2ecc71; background: rgba(46, 204, 113, 0.15); }
     
     .btn { color: white; padding: 14px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 8px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
     #cameraBtn { background: #28a745; }
-    #nextBtn { background: #1a73e8; }
     
-    #scanTriggerBtn { background: #e67e22; padding: 18px; font-size: 1.5rem; display: none; box-shadow: 0 4px 15px rgba(230,126,34,0.5); }
-    #scanTriggerBtn:active { background: #d35400; transform: scale(0.98); }
-    
-    /* 履歴エリア */
-    .history-container { margin-top: 10px; text-align: left; background: #2c3e50; color: white; padding: 8px; border-radius: 8px; box-sizing: border-box; }
-    .history-title { font-size: 0.85rem; font-weight: bold; margin-bottom: 4px; border-bottom: 1px solid #34495e; padding-bottom: 2px; color: #bdc3c7; }
-    #historyList { max-height: 100px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; padding: 0; margin: 0; list-style: none; }
-    #historyList li { padding: 3px 0; border-bottom: 1px solid #34495e; line-height: 1.2; }
+    .history-container { margin-top: 12px; text-align: left; background: #2c3e50; color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; }
+    .history-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid #34495e; padding-bottom: 4px; color: #bdc3c7; }
+    #historyList { max-height: 180px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 0; margin: 0; list-style: none; }
+    #historyList li { padding: 5px 0; border-bottom: 1px solid #34495e; line-height: 1.3; }
     .history-ok { color: #2ecc71; }
     .history-ng { color: #e74c3c; }
     .history-wait { color: #f1c40f; }
@@ -78,7 +106,10 @@
     <button onclick="moveToNextColumn()" style="background:#1a73e8; color:white; border:none; padding:5px 10px; border-radius:4px; font-weight:bold; font-size:0.85rem;">➡ 次の列</button>
   </div>
   
-  <div id="log">📷 最初にカメラを起動してください</div>
+  <div id="log-container">
+    <div id="log-icon" class="icon-box">📷</div>
+    <div id="log-text">最初にカメラを起動してください</div>
+  </div>
 
   <button id="cameraBtn" onclick="startCamera()" class="btn">📷 カメラを起動する</button>
 
@@ -86,11 +117,9 @@
     <canvas id="canvas"></canvas>
     <div id="guideOverlay" class="qr-guide-overlay"></div>
   </div>
-
-  <button id="scanTriggerBtn" onclick="takeSnapshotAndScan()" class="btn">📸 オレンジ枠に近づけてスキャン！</button>
   
   <div class="history-container">
-    <div class="history-title">⏱ 履歴（新しい順）</div>
+    <div class="history-title">⏱ 履歴（かざすだけで自動保存）</div>
     <ul id="historyList">
       <li style="color:#bdc3c7;">履歴はここに表示されます</li>
     </ul>
@@ -100,18 +129,17 @@
 </div>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.19 (離して読める・大画面版)";
+  const VERSION_TEXT = "バージョン: Ver 1.20 (離して読めるオート版)";
   const GAS_URL = "https://script.google.com/a/macros/yoshifuku-unso.com/s/AKfycbw-BBGgev0lOZCKI_Vul073Z3QAQ-KBR-RBvBZQEkf--BaQIIupksPhzhE9bs30slwl/exec";
 
   const video = document.createElement("video");
   const canvasElement = document.getElementById("canvas");
   const canvas = canvasElement.getContext("2d", { willReadFrequently: true });
   
-  const hiddenCanvas = document.createElement("canvas");
-  const hiddenCtx = hiddenCanvas.getContext("2d", { willReadFrequently: true });
-  
-  const logDiv = document.getElementById("log");
   const guideOverlay = document.getElementById("guideOverlay");
+  const logContainer = document.getElementById("log-container");
+  const logIcon = document.getElementById("log-icon");
+  const logText = document.getElementById("log-text");
   const statusDiv = document.getElementById("status");
   const cameraWrapper = document.getElementById("cameraWrapper");
   const historyList = document.getElementById("historyList");
@@ -119,6 +147,9 @@
   let currentColumn = 1; 
   let sendQueue = [];       
   let isSending = false;    
+
+  let lastScannedData = "";
+  let lastScannedTime = 0;
 
   document.getElementById("version").innerText = VERSION_TEXT;
 
@@ -138,10 +169,10 @@
   }
 
   async function startCamera() {
-    logDiv.innerHTML = "カメラを起動しています...";
+    logText.innerHTML = "カメラを起動しています...";
     try {
       const constraints = { 
-        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, 
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
         audio: false 
       };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -157,65 +188,106 @@
       
       document.getElementById("cameraBtn").style.display = "none";
       cameraWrapper.style.display = "block";
-      document.getElementById("scanTriggerBtn").style.display = "block"; 
       
-      requestAnimationFrame(renderVideoOnly);
-      logDiv.innerHTML = "✓ オレンジの枠いっぱいにQRを近づけてね";
+      // オートスキャンループ
+      requestAnimationFrame(autoScanLoop);
     } catch (err) {
       alert("ブラウザのカメラ使用を許可してください。");
-      logDiv.innerHTML = "❌ 起動失敗: " + err.name;
+      logIcon.innerHTML = "❌";
+      logText.innerHTML = "起動失敗: " + err.name;
     }
   }
 
-  function renderVideoOnly() {
+  function autoScanLoop() {
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       canvasElement.width = video.videoWidth;
       canvasElement.height = video.videoHeight;
       canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+
+      const vWidth = video.videoWidth;
+      const vHeight = video.videoHeight;
+      
+      // ★離しても読めるように、枠内の切り抜き処理を最適化
+      const cropSize = Math.min(vWidth, vHeight) * 0.6;
+      const cropX = (vWidth - cropSize) / 2;
+      const cropY = (vHeight - cropSize) / 2;
+
+      const imageData = canvas.getImageData(cropX, cropY, cropSize, cropSize);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+
+      if (code && code.data.trim() !== "") {
+        const now = Date.now();
+        if (code.data === lastScannedData && (now - lastScannedTime) < 3000) {
+          logContainer.style.background = "#e8f5e9";
+          logIcon.innerHTML = "⏳";
+          logIcon.className = "icon-box"; 
+          logText.style.color = "#7f8c8d";
+          logText.innerHTML = "同じQRコードを検出中<br><small style='color:#95a5a6;'>二重送信を防ぐためロックしています</small>";
+        } else {
+          lastScannedData = code.data;
+          lastScannedTime = now;
+
+          if (navigator.vibrate) navigator.vibrate(100); 
+          
+          guideOverlay.classList.add("success");
+          logContainer.style.background = "#e8f5e9";
+          logIcon.innerHTML = "🎉";
+          logIcon.className = "icon-box icon-bounce";
+          logText.style.color = "#28a745";
+          logText.innerHTML = "読み込み成功！保存します";
+          
+          setTimeout(() => {
+            guideOverlay.classList.remove("success");
+          }, 400);
+
+          const colLetter = String.fromCharCode(64 + currentColumn);
+          sendQueue.push({ qrValue: code.data, col: currentColumn, label: colLetter });
+          
+          addHistoryLog("⏳ 予約追加: (" + colLetter + "列) " + code.data, "wait");
+          processQueue();
+        }
+      } else {
+        diagnoseImageError(imageData);
+      }
     }
-    requestAnimationFrame(renderVideoOnly);
+    requestAnimationFrame(autoScanLoop);
   }
 
-  function takeSnapshotAndScan() {
-    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+  function diagnoseImageError(imageData) {
+    if (sendQueue.length > 0) {
+      logContainer.style.background = "#fff3cd";
+      logIcon.innerHTML = "🚀";
+      logIcon.className = "icon-box icon-bounce";
+      logText.style.color = "#e67e22";
+      logText.innerHTML = "GASへ通信中... (残り " + sendQueue.length + " 件)";
+      return;
+    }
 
-    hiddenCanvas.width = video.videoWidth;
-    hiddenCanvas.height = video.videoHeight;
-    hiddenCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+    const data = imageData.data;
+    let totalBrightness = 0;
+    for (let i = 0; i < data.length; i += 40) {
+      totalBrightness += (data[i] + data[i+1] + data[i+2]) / 3;
+    }
+    const avgBrightness = totalBrightness / (data.length / 40);
 
-    const imageData = hiddenCtx.getImageData(0, 0, hiddenCanvas.width, hiddenCanvas.height);
-    // ★離して読めるように、解析オプションを調整
-    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
-
-    if (code && code.data.trim() !== "") {
-      if (navigator.vibrate) navigator.vibrate(80); 
-      
-      const colLetter = String.fromCharCode(64 + currentColumn);
-      sendQueue.push({ qrValue: code.data, col: currentColumn, label: colLetter });
-      
-      addHistoryLog("⏳ 予約追加: (" + colLetter + "列) " + code.data, "wait");
-      // 成功演出
-      guideOverlay.classList.add("success");
-      setTimeout(() => guideOverlay.classList.remove("success"), 300);
-
-      processQueue();
+    if (avgBrightness < 45) {
+      logContainer.style.background = "#eceff1";
+      logIcon.innerHTML = "💡";
+      logIcon.className = "icon-box icon-blink";
+      logText.style.color = "#37474f";
+      logText.innerHTML = "画面が暗すぎます！<br><small style='font-weight:normal; color:#78909c;'>明るい場所へ移動するか、ライトを当ててください</small>";
     } else {
-      if (navigator.vibrate) navigator.vibrate([40, 40]); 
-      logDiv.style.color = "#dc3545";
-      logDiv.innerHTML = "❌ QRコードが見つかりません";
-      // 離して読めるようになったため、エラーメッセージを調整
-      addHistoryLog("❌ NG: QRが見つかりません", "ng");
+      logContainer.style.background = "#fff3cd";
+      logIcon.innerHTML = "🔍";
+      logIcon.className = "icon-box icon-zoom";
+      logText.style.color = "#d35400";
+      logText.innerHTML = "枠内にQRコードを映してください<br><small style='font-weight:normal; color:#e67e22;'>少し離してピントを合わせると読みやすくなります</small>";
     }
   }
 
   function processQueue() {
-    if (isSending || sendQueue.length === 0) {
-      updateStatusDisplay();
-      return;
-    }
-
+    if (isSending || sendQueue.length === 0) return;
     isSending = true;
-    updateStatusDisplay();
 
     const currentData = sendQueue[0];
 
@@ -236,19 +308,10 @@
     });
   }
 
-  function updateStatusDisplay() {
-    if (sendQueue.length > 0) {
-      logDiv.style.color = "#e67e22";
-      logDiv.innerHTML = "⏳ 送信中... (残り " + sendQueue.length + " 件)";
-    } else {
-      logDiv.style.color = "#28a745";
-      logDiv.innerHTML = "✓ すべての保存が完了しました";
-    }
-  }
-
   function moveToNextColumn() {
     currentColumn++;
     statusDiv.innerHTML = "入力先: " + String.fromCharCode(64 + currentColumn) + "列 (" + currentColumn + ")";
+    lastScannedData = ""; 
   }
 </script>
 </body>
