@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【画面調整版】QR在庫管理スキャナー</title>
+  <title>【完全修正版】QR在庫管理スキャナー</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 10px; background: #f4f6f9; touch-action: manipulation; }
@@ -13,30 +13,24 @@
     #status { margin: 5px 0; font-size: 1.1rem; font-weight: bold; color: #333; background: #fff3cd; padding: 8px; border-radius: 6px; border: 1px solid #ffeeba; }
     #log { margin: 8px 0; font-size: 1.3rem; font-weight: bold; color: #1a73e8; min-height: 44px; background: #e8f5e9; padding: 8px; border-radius: 6px; border: 1px solid #c8e6c9; display: flex; align-items: center; justify-content: center; word-break: break-all; }
     
-    /* === カメラエリアのスタイルを調整 === */
+    /* === カメラ表示エリアの完全修正 === */
     .camera-wrapper {
       position: relative;
       width: 100%;
       max-width: 360px;
       margin: 10px auto;
       display: none;
-      
-      /* ★【潰れ修正】コンテナに比率を持たせ、映像が縦につぶれるのを防ぐ */
-      /* アスペクト比を3:4（一般的なスマホカメラの比率）に設定 */
-      aspect-ratio: 3 / 4; 
-      overflow: hidden; /* 枠からはみ出した分は隠す */
       border-radius: 10px;
       border: 3px solid #2c3e50;
+      background: #000;
+      box-sizing: border-box;
     }
     
     #canvas {
       width: 100%;
-      height: 100%; /* 親コンテナいっぱいに広げる */
-      
-      /* ★【潰れ修正】映像を潰さず、枠内に収める設定に変更 */
-      /* object-fit: fill;（潰して埋める）から object-fit: cover;（潰さず中央を映す）に変更 */
-      object-fit: cover; 
+      height: auto; /* 縦幅を固定せず、横幅に合わせて自動計算（これで絶対に潰れません） */
       display: block;
+      aspect-ratio: auto; /* カメラ本来の比率を維持 */
     }
     
     .qr-guide-overlay {
@@ -44,17 +38,14 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 200px; /* ガイド枠を少し大きくしました */
-      height: 200px;
-      border: 6px dashed #e67e22; /* オレンジ色の点線枠は維持 */
+      width: 180px; 
+      height: 180px;
+      border: 6px dashed #e67e22; 
       border-radius: 15px;
-      
-      /* ★【暗がり解消】枠外を暗くする box-shadow を削除しました */
-      /* box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.4); <-- これを削除 */
-      
       opacity: 0.9;
       pointer-events: none;
       box-sizing: border-box;
+      /* 暗くするエフェクトは完全に削除されています */
     }
     /* ================================== */
     
@@ -79,101 +70,7 @@
 <body>
 
 <div class="container">
-  <h2>QR在庫管理（Ver1.13）</h2>
-  
-  <div id="status">入力先: A列 (1)http://googleusercontent.com/generated_image_content/0
-
-はい、可能です！ご指摘の通り、画像の比率と、枠外を暗くするエフェクトを調整しました。
-
-1.  **画像の潰れを修正：**
-    カメラの映像を表示するエリアの縦横比（アスペクト比）を、一般的なカメラ映像と同じ比率（4:3）に固定しました。これにより、映像が縦長に潰れたり伸びたりせず、本来の正しい比率で表示されるようになります。QRコードも歪まずに映るため、読み取りやすくなります。
-2.  **枠外の暗がりを削除：**
-    QRコードを合わせるガイド枠の外側を暗くしていたエフェクト（シャドウ）を完全に削除しました。画面全体が明るいままになり、カメラ映像の隅々までハッキリと確認できます。
-
-これらの修正を反映した、**Ver 1.13** のコードを用意しました。これでGitHubを上書きプッシュしてください。
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【画面調整版】QR在庫管理スキャナー</title>
-  <script src="[https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js](https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js)"></script>
-  <style>
-    body { font-family: sans-serif; text-align: center; margin: 0; padding: 10px; background: #f4f6f9; touch-action: manipulation; }
-    .container { max-width: 500px; margin: 0 auto; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
-    h2 { color: #2c3e50; margin: 5px 0 10px 0; font-size: 1.5rem; }
-    
-    #status { margin: 5px 0; font-size: 1.1rem; font-weight: bold; color: #333; background: #fff3cd; padding: 8px; border-radius: 6px; border: 1px solid #ffeeba; }
-    #log { margin: 8px 0; font-size: 1.3rem; font-weight: bold; color: #1a73e8; min-height: 44px; background: #e8f5e9; padding: 8px; border-radius: 6px; border: 1px solid #c8e6c9; display: flex; align-items: center; justify-content: center; word-break: break-all; }
-    
-    /* === カメラエリアのスタイルを調整 === */
-    .camera-wrapper {
-      position: relative;
-      width: 100%;
-      max-width: 360px;
-      margin: 10px auto;
-      display: none;
-      
-      /* ★【潰れ修正】コンテナに比率を持たせ、映像が縦につぶれるのを防ぐ */
-      /* アスペクト比を4:3（一般的なスマホカメラの比率）に設定 */
-      aspect-ratio: 4 / 3; 
-      overflow: hidden; /* 枠からはみ出した分は隠す */
-      border-radius: 10px;
-      border: 3px solid #2c3e50;
-    }
-    
-    #canvas {
-      width: 100%;
-      height: 100%; /* 親コンテナいっぱいに広げる */
-      
-      /* ★【潰れ修正】映像を潰さず、枠内に収める設定に変更 */
-      object-fit: cover; /* 潰さず中央を映す */
-      display: block;
-    }
-    
-    .qr-guide-overlay {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 200px; /* ガイド枠のサイズ */
-      height: 200px;
-      border: 6px dashed #e67e22; /* オレンジ色の点線枠は維持 */
-      border-radius: 15px;
-      
-      /* ★【暗がり解消】枠外を暗くする box-shadow を削除 */
-      /* box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.4); <-- これを削除 */
-      
-      opacity: 0.9;
-      pointer-events: none;
-      box-sizing: border-box;
-    }
-    /* ================================== */
-    
-    .btn { color: white; padding: 15px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 10px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
-    #cameraBtn { background: #28a745; }
-    #nextBtn { background: #1a73e8; margin-top: 10px; }
-    
-    #scanTriggerBtn { background: #e67e22; padding: 18px; font-size: 1.4rem; display: none; box-shadow: 0 4px 15px rgba(230,126,34,0.5); }
-    #scanTriggerBtn:active { background: #d35400; transform: scale(0.98); }
-    
-    .history-container { margin-top: 15px; text-align: left; background: #2c3e50; color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; }
-    .history-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid #34495e; padding-bottom: 3px; color: #bdc3c7; }
-    #historyList { max-height: 120px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 0; margin: 0; list-style: none; }
-    #historyList li { padding: 4px 0; border-bottom: 1px solid #34495e; line-height: 1.2; }
-    .history-ok { color: #2ecc71; }
-    .history-ng { color: #e74c3c; }
-    .history-wait { color: #f1c40f; }
-
-    .version-info { margin-top: 15px; font-size: 0.75rem; color: #7f8c8d; text-align: center; }
-  </style>
-</head>
-<body>
-
-<div class="container">
-  <h2>QR在庫管理（Ver1.13）</h2>
+  <h2>QR在庫管理（Ver1.14）</h2>
   
   <div id="status">入力先: A列 (1)</div>
   <div id="log">📷 最初にカメラを起動してください</div>
@@ -199,8 +96,8 @@
 </div>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.13 (画面比率・明るさ調整版)";
-  const GAS_URL = "[https://script.google.com/a/macros/yoshifuku-unso.com/s/AKfycbw-BBGgev0lOZCKI_Vul073Z3QAQ-KBR-RBvBZQEkf--BaQIIupksPhzhE9bs30slwl/exec](https://script.google.com/a/macros/yoshifuku-unso.com/s/AKfycbw-BBGgev0lOZCKI_Vul073Z3QAQ-KBR-RBvBZQEkf--BaQIIupksPhzhE9bs30slwl/exec)";
+  const VERSION_TEXT = "バージョン: Ver 1.14 (比率完全修正版)";
+  const GAS_URL = "https://script.google.com/a/macros/yoshifuku-unso.com/s/AKfycbw-BBGgev0lOZCKI_Vul073Z3QAQ-KBR-RBvBZQEkf--BaQIIupksPhzhE9bs30slwl/exec";
 
   const video = document.createElement("video");
   const canvasElement = document.getElementById("canvas");
@@ -265,12 +162,12 @@
     }
   }
 
-  // 画面表示用ループ
+  // ★画面表示用ループ（カメラの生の縦横比をそのまま自動適用させます）
   function renderVideoOnly() {
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      // 表示用Canvasのサイズをコンテナの比率（4:3）に合わせる
-      canvasElement.height = 480; 
-      canvasElement.width = 640; 
+      // 固定値にせず、カメラ映像が持っている本来の幅・高さをそのまま100%セット
+      canvasElement.width = video.videoWidth;
+      canvasElement.height = video.videoHeight;
       canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
     }
     requestAnimationFrame(renderVideoOnly);
@@ -330,6 +227,7 @@
     });
   }
 
+  // 画面中央のメイン表示
   function updateStatusDisplay() {
     if (sendQueue.length > 0) {
       logDiv.style.color = "#e67e22";
