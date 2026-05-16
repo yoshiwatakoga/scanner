@@ -2,37 +2,59 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>【超爆速・画面最適化版】QR在庫管理スキャナー</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>【最新版】QR在庫管理スキャナー</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; margin: 0; padding: 10px; background: #f4f6f9; }
+    body { font-family: sans-serif; text-align: center; margin: 0; padding: 10px; background: #f4f6f9; touch-action: manipulation; }
     .container { max-width: 500px; margin: 0 auto; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
-    h2 { color: #e67e22; margin: 5px 0 10px 0; font-size: 1.5rem; }
+    h2 { color: #2c3e50; margin: 5px 0 10px 0; font-size: 1.5rem; }
     
-    #status { margin: 5px 0; font-size: 1.2rem; font-weight: bold; color: #333; background: #fff3cd; padding: 10px; border-radius: 6px; border: 1px solid #ffeeba; }
-    #log { margin: 10px 0; font-size: 1.4rem; font-weight: bold; color: #28a745; min-height: 40px; background: #e8f5e9; padding: 10px; border-radius: 6px; border: 1px solid #c8e6c9; display: flex; align-items: center; justify-content: center; }
+    #status { margin: 5px 0; font-size: 1.1rem; font-weight: bold; color: #333; background: #fff3cd; padding: 8px; border-radius: 6px; border: 1px solid #ffeeba; }
+    #log { margin: 8px 0; font-size: 1.3rem; font-weight: bold; color: #28a745; min-height: 44px; background: #e8f5e9; padding: 8px; border-radius: 6px; border: 1px solid #c8e6c9; display: flex; align-items: center; justify-content: center; word-break: break-all; }
     
-    /* 画面上の見た目はコンパクトに維持（これでカクカクを防ぎます） */
-    #canvas { width: 100%; max-width: 320px; height: 210px; object-fit: cover; border: 3px solid #e67e22; border-radius: 8px; display: none; margin: 10px auto; }
+    /* カメラコンテナとオーバーレイ */
+    .camera-wrapper { position: relative; width: 100%; max-width: 360px; margin: 10px auto; display: none; }
+    #canvas { width: 100%; height: 280px; object-fit: cover; border: 3px solid #2c3e50; border-radius: 10px; display: block; }
+    .qr-guide-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 180px; height: 180px; border: 6px dashed #e67e22; border-radius: 15px; box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.4); opacity: 0.9; pointer-events: none; box-sizing: border-box; }
     
-    .btn { color: white; padding: 15px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 10px; cursor: pointer; font-weight: bold; }
+    .btn { color: white; padding: 15px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 10px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
     #cameraBtn { background: #28a745; }
-    #nextBtn { background: #1a73e8; }
+    #nextBtn { background: #1a73e8; margin-top: 15px; }
+    
+    /* シャッターボタン */
+    #scanTriggerBtn { background: #e67e22; padding: 20px; font-size: 1.5rem; display: none; box-shadow: 0 4px 15px rgba(230,126,34,0.5); }
+    #scanTriggerBtn:active { background: #d35400; transform: scale(0.98); }
+    
+    /* ★【新設】バージョン情報用のスタイル */
+    .version-info { margin-top: 20px; font-size: 0.8rem; color: #7f8c8d; text-align: center; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>QR在庫管理（テスト）</h2>
-  <div id="status">現在の入力先: A列 (1)</div>
-  <div id="log">📷 スキャン開始を押してください</div>
-  <button id="cameraBtn" onclick="startCamera()" class="btn">📷 スキャン開始</button>
-  <canvas id="canvas"></canvas>
-  <button id="nextBtn" onclick="moveToNextColumn()" class="btn">➡ 次の品目（列）へ移動</button>
+  <h2>QR在庫管理</h2>
+  
+  <div id="status">入力先: A列 (1)</div>
+  <div id="log">📷 最初にカメラを起動してください</div>
+
+  <button id="cameraBtn" onclick="startCamera()" class="btn">📷 カメラを起動する</button>
+
+  <div class="camera-wrapper" id="cameraWrapper">
+    <canvas id="canvas"></canvas>
+    <div class="qr-guide-overlay"></div>
+  </div>
+
+  <button id="scanTriggerBtn" onclick="takeSnapshotAndScan()" class="btn">📸 オレンジ枠に合わせてスキャン！</button>
+  <button id="nextBtn" onclick="moveToNextColumn()" class="btn">➡ 次の品目へ移動</button>
+  
+  <div id="version" class="version-info"></div>
 </div>
 
 <script>
+  // ★ここに表示したいバージョンと日時を書いておきます
+  const VERSION_TEXT = "バージョン: Ver 1.00 (2026/05/16 17:00)";
+
   const GAS_URL = "https://script.google.com/a/macros/yoshifuku-unso.com/s/AKfycbw-BBGgev0lOZCKI_Vul073Z3QAQ-KBR-RBvBZQEkf--BaQIIupksPhzhE9bs30slwl/exec";
 
   const video = document.createElement("video");
@@ -41,21 +63,18 @@
   
   const logDiv = document.getElementById("log");
   const statusDiv = document.getElementById("status");
+  const cameraWrapper = document.getElementById("cameraWrapper");
   let currentColumn = 1; 
   let isProcessing = false; 
-  let lastScanTime = 0; 
+
+  // 画面が開いた瞬間にバージョンを表示する
+  document.getElementById("version").innerText = VERSION_TEXT;
 
   async function startCamera() {
     logDiv.innerHTML = "カメラを起動しています...";
     try {
-      // ★【爆速化1】カメラの解像度を「フルHD（1920x1080）」の超高画質に引き上げ！
-      // これでQRコードの細かなモザイク模様がくっきりと映り、一瞬で識別できるようになります。
       const constraints = { 
-        video: { 
-          facingMode: "environment", 
-          width: { ideal: 1920 }, 
-          height: { ideal: 1080 } 
-        }, 
+        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, 
         audio: false 
       };
       
@@ -65,66 +84,64 @@
       await video.play();
       
       document.getElementById("cameraBtn").style.display = "none";
-      canvasElement.style.display = "block";
+      cameraWrapper.style.display = "block";
+      document.getElementById("scanTriggerBtn").style.display = "block"; 
       
-      requestAnimationFrame(tick);
-      logDiv.innerHTML = "✓ QRコードを映してください";
+      requestAnimationFrame(renderVideoOnly);
+      logDiv.innerHTML = "✓ オレンジ色の枠にQRを合わせてボタンを押してね";
     } catch (err) {
       alert("ブラウザのカメラ使用を許可してください。");
       logDiv.innerHTML = "❌ 起動失敗: " + err.name;
     }
   }
 
-  function tick() {
+  function renderVideoOnly() {
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      // ★【爆速化2】ここが魔法のポイントです。
-      // 画面の見た目は小さく（CSSで制御）したまま、内部の計算用サイズは「カメラ本来の超高画質」を100%維持します。
       canvasElement.height = video.videoHeight;
       canvasElement.width = video.videoWidth;
-      
       canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-
-      // ★【爆速化3】解析の間引き時間を「150ms」から「60ms（1秒に約16回）」に短縮！
-      // 高画質化したことでスマホの無駄な迷いがなくなり、処理速度自体が上がったため、間隔を縮めてもカクつきません。
-      const now = Date.now();
-      if (now - lastScanTime > 60) {
-        lastScanTime = now;
-
-        const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-
-        if (code && !isProcessing) {
-          isProcessing = true; 
-          if (navigator.vibrate) navigator.vibrate(100);
-
-          logDiv.style.color = "#1a73e8";
-          logDiv.innerHTML = "⏳ 書き込み中...";
-
-          fetch(GAS_URL, {
-            method: "POST",
-            body: JSON.stringify({ qrValue: code.data, col: currentColumn })
-          })
-          .then(() => {
-            logDiv.style.color = "#28a745";
-            logDiv.innerHTML = "✓ 保存OK: " + code.data;
-            
-            // テスト中なので、送信完了から次の読み取りまでの待ち時間を0.5秒（短め）にしました
-            setTimeout(() => { isProcessing = false; }, 500); 
-          })
-          .catch(() => {
-            logDiv.style.color = "#dc3545";
-            logDiv.innerHTML = "❌ 送信失敗";
-            isProcessing = false; 
-          });
-        }
-      }
     }
-    requestAnimationFrame(tick);
+    requestAnimationFrame(renderVideoOnly);
+  }
+
+  function takeSnapshotAndScan() {
+    if (isProcessing) return; 
+    
+    logDiv.style.color = "#1a73e8";
+    logDiv.innerHTML = "🔍 読み取り中...";
+
+    const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+
+    if (code) {
+      isProcessing = true;
+      if (navigator.vibrate) navigator.vibrate(100); 
+      logDiv.innerHTML = "⏳ シートに書き込み中...";
+
+      fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify({ qrValue: code.data, col: currentColumn })
+      })
+      .then(() => {
+        logDiv.style.color = "#28a745";
+        logDiv.innerHTML = "✓ 保存OK: " + code.data;
+        isProcessing = false; 
+      })
+      .catch(() => {
+        logDiv.style.color = "#dc3545";
+        logDiv.innerHTML = "❌ 送信失敗";
+        isProcessing = false; 
+      });
+    } else {
+      if (navigator.vibrate) navigator.vibrate([50, 50]); 
+      logDiv.style.color = "#dc3545";
+      logDiv.innerHTML = "❌ ガイド枠に合わせて、もう一度押してね";
+    }
   }
 
   function moveToNextColumn() {
     currentColumn++;
-    statusDiv.innerHTML = "現在の入力先: " + String.fromCharCode(64 + currentColumn) + "列 (" + currentColumn + ")";
+    statusDiv.innerHTML = "入力先: " + String.fromCharCode(64 + currentColumn) + "列 (" + currentColumn + ")";
   }
 </script>
 </body>
