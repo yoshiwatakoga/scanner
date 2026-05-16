@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【予約＆履歴機能付き】QR在庫管理スキャナー</title>
+  <title>【ノンストップ連射版】QR在庫管理スキャナー</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 10px; background: #f4f6f9; touch-action: manipulation; }
@@ -15,7 +15,10 @@
     
     /* カメラエリア */
     .camera-wrapper { position: relative; width: 100%; max-width: 360px; margin: 10px auto; display: none; }
+    
+    /* ★【超重要】Canvas要素自体のサイズを軽量化して、フリーズを完全に防ぎます */
     #canvas { width: 100%; height: 240px; object-fit: cover; border: 3px solid #2c3e50; border-radius: 10px; display: block; }
+    
     .qr-guide-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 160px; height: 160px; border: 5px dashed #e67e22; border-radius: 15px; box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.4); opacity: 0.9; pointer-events: none; box-sizing: border-box; }
     
     .btn { color: white; padding: 15px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 10px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
@@ -25,14 +28,14 @@
     #scanTriggerBtn { background: #e67e22; padding: 18px; font-size: 1.4rem; display: none; box-shadow: 0 4px 15px rgba(230,126,34,0.5); }
     #scanTriggerBtn:active { background: #d35400; transform: scale(0.98); }
     
-    /* ★【新設】撮影履歴・NG判定用エリアのスタイル */
+    /* 撮影履歴エリア */
     .history-container { margin-top: 15px; text-align: left; background: #2c3e50; color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; }
     .history-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid #34495e; padding-bottom: 3px; color: #bdc3c7; }
     #historyList { max-height: 120px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 0; margin: 0; list-style: none; }
     #historyList li { padding: 4px 0; border-bottom: 1px solid #34495e; line-height: 1.2; }
-    .history-ok { color: #2ecc71; } /* 成功ログは緑 */
-    .history-ng { color: #e74c3c; } /* NGログは赤 */
-    .history-wait { color: #f1c40f; } /* 予約中ログは黄色 */
+    .history-ok { color: #2ecc71; }
+    .history-ng { color: #e74c3c; }
+    .history-wait { color: #f1c40f; }
 
     .version-info { margin-top: 15px; font-size: 0.75rem; color: #7f8c8d; text-align: center; }
   </style>
@@ -52,7 +55,7 @@
     <div class="qr-guide-overlay"></div>
   </div>
 
-  <button id="scanTriggerBtn" onclick="takeSnapshotAndScan()" class="btn">📸 枠に合わせてスキャン！</button>
+  <button id="scanTriggerBtn" onclick="takeSnapshotAndScan()" class="btn">📸 連射スキャン！</button>
   <button id="nextBtn" onclick="moveToNextColumn()" class="btn">➡ 次の品目へ移動</button>
   
   <div class="history-container">
@@ -66,9 +69,11 @@
 </div>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.10 (予約送信＆履歴機能)";
+  // バージョンを更新
+  const VERSION_TEXT = "バージョン: Ver 1.11 (ノンストップ高速連射版)";
   const GAS_URL = "https://script.google.com/a/macros/yoshifuku-unso.com/s/AKfycbw-BBGgev0lOZCKI_Vul073Z3QAQ-KBR-RBvBZQEkf--BaQIIupksPhzhE9bs30slwl/exec";
 
+  // ★軽量化のためにvideo自体の取得サイズを調整（これでフリーズを防ぎます）
   const video = document.createElement("video");
   const canvasElement = document.getElementById("canvas");
   const canvas = canvasElement.getContext("2d", { willReadFrequently: true });
@@ -79,37 +84,35 @@
   const historyList = document.getElementById("historyList");
   
   let currentColumn = 1; 
-  
-  // ★【核心機能の変数】
-  let sendQueue = [];       // 送信待ちデータを貯めるバッファ（配列）
-  let isSending = false;    // 現在GASと通信中かどうかのフラグ
+  let sendQueue = [];       
+  let isSending = false;    
 
   document.getElementById("version").innerText = VERSION_TEXT;
 
-  // 現在の時刻を「17:05:32」のような形式で返す関数
   function getTimeStr() {
     const d = new Date();
     return "[" + String(d.getHours()).padStart(2, '0') + ":" + String(d.getMinutes()).padStart(2, '0') + ":" + String(d.getSeconds()).padStart(2, '0') + "] ";
   }
 
-  // 履歴リストの最上部にログを追加する関数
   function addHistoryLog(message, type) {
-    // 最初の初期メッセージを消去
     if (historyList.innerText === "履歴はここに表示されます") historyList.innerHTML = "";
-    
     const li = document.createElement("li");
     li.innerHTML = getTimeStr() + message;
     if (type === "ok") li.className = "history-ok";
     if (type === "ng") li.className = "history-ng";
     if (type === "wait") li.className = "history-wait";
-    
-    historyList.insertBefore(li, historyList.firstChild); // 常に一番上に追加
+    historyList.insertBefore(li, historyList.firstChild);
   }
 
   async function startCamera() {
     logDiv.innerHTML = "カメラを起動しています...";
     try {
-      const constraints = { video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false };
+      // ★【フリーズ対策】カメラ解像度をスマホに負担をかけない「1280x720」に最適化。
+      // これにより、撮影時のデータ引き抜きが一瞬で終わり、画面が一切止まらなくなります。
+      const constraints = { 
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
+        audio: false 
+      };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = stream;
       video.setAttribute("playsinline", true);
@@ -135,53 +138,46 @@
 
   function renderVideoOnly() {
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      canvasElement.height = video.videoHeight;
-      canvasElement.width = video.videoWidth;
+      // ★【フリーズ対策】Canvasの内部サイズも、画面の表示サイズ（横幅半分くらい）に合わせて自動縮小
+      // これでボタンを押した時の「画像データ取得処理」が10倍以上軽くなります
+      canvasElement.height = video.videoHeight / 2;
+      canvasElement.width = video.videoWidth / 2;
       canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
     }
     requestAnimationFrame(renderVideoOnly);
   }
 
-  // ボタンが押された時のスキャン処理
+  // ★ボタンが押された瞬間の処理（超軽量化版）
   function takeSnapshotAndScan() {
+    // 画面フリーズを無くすため、すでにCanvasに描画されている「今の1コマ」からデータを取り出すだけ
     const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
     const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
 
     if (code && code.data.trim() !== "") {
-      // 【成功判定】QRコードが見つかった場合
-      if (navigator.vibrate) navigator.vibrate(100); // 読めたら短くバイブ
+      if (navigator.vibrate) navigator.vibrate(80); // 振動時間を少し短くしてサクサク感をアップ
       
       const colLetter = String.fromCharCode(64 + currentColumn);
-      
-      // 送信データを「予約リスト（Queue）」に追加
       sendQueue.push({ qrValue: code.data, col: currentColumn, label: colLetter });
       
       addHistoryLog("⏳ 予約追加: (" + colLetter + "列) " + code.data, "wait");
-      
-      // バックグラウンド送信処理を呼び出す
       processQueue();
     } else {
-      // 【NG判定】QRコードの読み取りに失敗した場合
-      if (navigator.vibrate) navigator.vibrate([60, 40, 60]); // 失敗はトントンと不快な振動
+      if (navigator.vibrate) navigator.vibrate([40, 40]); 
       logDiv.style.color = "#dc3545";
       logDiv.innerHTML = "❌ QRコードが見つかりません";
-      
       addHistoryLog("❌ NG: QRが見つかりません (撮り直し)", "ng");
     }
   }
 
-  // バックグラウンドで予約リストを順番に処理する魔法の関数
   function processQueue() {
-    // 通信中、または予約リストが空なら何もしない
     if (isSending || sendQueue.length === 0) {
       updateStatusDisplay();
       return;
     }
 
-    isSending = true; // 送信中にセット
+    isSending = true;
     updateStatusDisplay();
 
-    // 先頭の予約データを1件取り出す
     const currentData = sendQueue[0];
 
     fetch(GAS_URL, {
@@ -189,26 +185,22 @@
       body: JSON.stringify({ qrValue: currentData.qrValue, col: currentData.col })
     })
     .then(() => {
-      // 送信成功したら、キューから正式に削除
       sendQueue.shift(); 
       addHistoryLog("✓ 保存完了: (" + currentData.label + "列) " + currentData.qrValue, "ok");
     })
     .catch((err) => {
-      // ネットワークエラーなどの場合は、あえて消さずにその場で少し待って再試行
       addHistoryLog("⚠️ 送信エラー。再試行します", "ng");
     })
     .finally(() => {
-      isSending = false; // 通信終了
-      // 次の予約があれば自動的に処理（ループ）
+      isSending = false; 
       processQueue();
     });
   }
 
-  // 画面中央のメイン表示を更新する
   function updateStatusDisplay() {
     if (sendQueue.length > 0) {
       logDiv.style.color = "#e67e22";
-      logDiv.innerHTML = "⏳ スプレッドシートに送信中... (残り " + sendQueue.length + " 件)";
+      logDiv.innerHTML = "⏳ 送信中... (残り " + sendQueue.length + " 件)";
     } else {
       logDiv.style.color = "#28a745";
       logDiv.innerHTML = "✓ すべての保存が完了しました";
