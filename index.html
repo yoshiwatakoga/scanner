@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR在庫管理スキャナー</title>
+  <title>超速QR在庫管理スキャナー</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 15px; background: #f4f6f9; }
@@ -28,25 +28,44 @@
 </div>
 
 <script>
+  // 教えていただいたGASのURLをあらかじめ設定してあります
   const GAS_URL = "https://script.google.com/a/macros/yoshifuku-unso.com/s/AKfycbw-BBGgev0lOZCKI_Vul073Z3QAQ-KBR-RBvBZQEkf--BaQIIupksPhzhE9bs30slwl/exec";
 
   const video = document.createElement("video");
   const canvasElement = document.getElementById("canvas");
-  const canvas = canvasElement.getContext("2d");
+  
+  // 高速化設定（willReadFrequently: true）を有効化
+  const canvas = canvasElement.getContext("2d", { willReadFrequently: true });
+  
   const logDiv = document.getElementById("log");
   const statusDiv = document.getElementById("status");
   let currentColumn = 1; 
   let lastReadCode = ""; 
+  let isProcessing = false; // 重複送信ガード
 
   async function startCamera() {
     logDiv.innerHTML = "カメラを起動しています...";
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+      // 読み取りに最適な解像度と高フレームレート(FPS)を要求
+      const constraints = { 
+        video: { 
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 60, max: 60 } // 可能なら60fps、最高速度を要求
+        }, 
+        audio: false 
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = stream;
       video.setAttribute("playsinline", true);
       await video.play();
+      
       document.getElementById("cameraBtn").style.display = "none";
       canvasElement.style.display = "block";
+      
+      // アニメーションループ起動
       requestAnimationFrame(tick);
       logDiv.innerHTML = "✓ バーコード・QRを映してください。";
     } catch (err) {
@@ -59,39 +78,26 @@
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       canvasElement.height = video.videoHeight;
       canvasElement.width = video.videoWidth;
+      
+      // カメラ映像を高速でキャンバスに描画
       canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+      
       const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+      
+      // QRコードの超速解析を実行
       const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
 
-      if (code && code.data !== lastReadCode) {
+      if (code && code.data !== lastReadCode && !isProcessing) {
         lastReadCode = code.data;
+        isProcessing = true; 
+        
+        // 読み取り成功時にスマホを「ブッ」と短く振動させる（対応機種のみ）
+        if (navigator.vibrate) navigator.vibrate(100);
+
         logDiv.style.color = "#1a73e8";
         logDiv.innerHTML = "シートに書き込み中...";
 
-        // Googleの箱の外から、安全にデータだけをスプレッドシートに叩き込む
+        // GASへデータを送信
         fetch(GAS_URL, {
           method: "POST",
-          body: JSON.stringify({ qrValue: code.data, col: currentColumn })
-        })
-        .then(() => {
-          logDiv.style.color = "#28a745";
-          logDiv.innerHTML = "✓ 保存完了: " + code.data;
-        })
-        .catch(() => {
-          logDiv.style.color = "#dc3545";
-          logDiv.innerHTML = "❌ 送信失敗";
-        });
-
-        setTimeout(() => { lastReadCode = ""; }, 3000);
-      }
-    }
-    requestAnimationFrame(tick);
-  }
-
-  function moveToNextColumn() {
-    currentColumn++;
-    statusDiv.innerHTML = "現在の入力先: " + String.fromCharCode(64 + currentColumn) + "列 (" + currentColumn + ")";
-  }
-</script>
-</body>
-</html>
+          body: JSON.
