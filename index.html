@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【離して読めるオート版】QR在庫管理</title>
+  <title>【速度検証特化版】QR在庫管理</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; }
@@ -11,7 +11,6 @@
     
     .top-info { display: flex; justify-content: space-between; align-items: center; background: #fff3cd; padding: 6px 12px; border-radius: 6px; border: 1px solid #ffeeba; font-weight: bold; font-size: 1rem; margin-bottom: 5px; }
     
-    /* ログ・動くアイコン表示エリア */
     #log-container {
       margin: 5px 0;
       min-height: 65px;
@@ -26,27 +25,13 @@
     }
     #log-text { font-size: 1.05rem; font-weight: bold; color: #1a73e8; text-align: left; line-height: 1.3; }
     
-    /* 超軽量CSSアニメーションアイコン */
     .icon-box { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 2rem; position: relative; }
     
-    /* 離して読めるため、前後の動きを少しマイルドに調整 */
-    @keyframes zoomInOut {
-      0% { transform: scale(0.9); }
-      50% { transform: scale(1.1); }
-      100% { transform: scale(0.9); }
-    }
+    @keyframes zoomInOut { 0% { transform: scale(0.9); } 50% { transform: scale(1.1); } 100% { transform: scale(0.9); } }
     .icon-zoom { animation: zoomInOut 1.2s infinite ease-in-out; }
-    
-    @keyframes blink {
-      0%, 100% { opacity: 0.4; }
-      50% { opacity: 1; }
-    }
+    @keyframes blink { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
     .icon-blink { animation: blink 1s infinite ease-in-out; }
-
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-6px); }
-    }
+    @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
     .icon-bounce { animation: bounce 0.4s infinite ease-in-out; }
 
     .camera-wrapper {
@@ -62,10 +47,8 @@
       aspect-ratio: 4 / 3; 
       overflow: hidden; 
     }
-    
     #canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
     
-    /* ガイド枠（緑のレーザー線は完全に削除しました） */
     .qr-guide-overlay {
       position: absolute;
       top: 50%;
@@ -80,8 +63,6 @@
       box-sizing: border-box;
       transition: border-color 0.2s, background-color 0.2s;
     }
-    
-    /* 成功時に枠を緑にする */
     .qr-guide-overlay.success { border-color: #2ecc71; background: rgba(46, 204, 113, 0.15); }
     
     .btn { color: white; padding: 14px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 8px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
@@ -102,8 +83,8 @@
 
 <div class="container">
   <div class="top-info">
-    <span id="status">入力先: A列 (1)</span>
-    <button onclick="moveToNextColumn()" style="background:#1a73e8; color:white; border:none; padding:5px 10px; border-radius:4px; font-weight:bold; font-size:0.85rem;">➡ 次の列</button>
+    <span id="status">現在の入力: 1つ目の箱 (A-C列)</span>
+    <button onclick="moveToNextBox()" style="background:#1a73e8; color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; font-size:0.85rem;">➡ 次の箱へ</button>
   </div>
   
   <div id="log-container">
@@ -119,7 +100,7 @@
   </div>
   
   <div class="history-container">
-    <div class="history-title">⏱ 履歴（かざすだけで自動保存）</div>
+    <div class="history-title">⏱ 履歴（ミリ秒計測オートスキャン）</div>
     <ul id="historyList">
       <li style="color:#bdc3c7;">履歴はここに表示されます</li>
     </ul>
@@ -129,8 +110,8 @@
 </div>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.20 (離して読めるオート版)";
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbxpDPY1gep8C5hVg1PxoJm9KSm8efyZyxsDwQWdixS8IeIRxmGR5RJ6SMC_3EhgDVHZ/exec";
+  const VERSION_TEXT = "バージョン: Ver 1.21 (速度検証特化・3列ブロック移動版)";
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbxX6rxZRMe1fIrCAOlGXlnV3dz5fmZf88OVX598keX8Flc98cz1V2UdRicbHq7Yw6Q/exec";
 
   const video = document.createElement("video");
   const canvasElement = document.getElementById("canvas");
@@ -144,7 +125,10 @@
   const cameraWrapper = document.getElementById("cameraWrapper");
   const historyList = document.getElementById("historyList");
   
-  let currentColumn = 1; 
+  // 初期状態は 1番目のブロック (A列=1)
+  let currentBoxNumber = 1;
+  let currentStartColumn = 1; 
+  
   let sendQueue = [];       
   let isSending = false;    
 
@@ -155,7 +139,7 @@
 
   function getTimeStr() {
     const d = new Date();
-    return "[" + String(d.getHours()).padStart(2, '0') + ":" + String(d.getMinutes()).padStart(2, '0') + ":" + String(d.getSeconds()).padStart(2, '0') + "] ";
+    return "[" + String(d.getHours()).padStart(2, '0') + ":" + String(d.getMinutes()).padStart(2, '0') + ":" + String(d.getSeconds()).padStart(2, '0') + "." + String(d.getMilliseconds()).padStart(3, '0') + "] ";
   }
 
   function addHistoryLog(message, type) {
@@ -171,10 +155,7 @@
   async function startCamera() {
     logText.innerHTML = "カメラを起動しています...";
     try {
-      const constraints = { 
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
-        audio: false 
-      };
+      const constraints = { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = stream;
       video.setAttribute("playsinline", true);
@@ -188,13 +169,10 @@
       
       document.getElementById("cameraBtn").style.display = "none";
       cameraWrapper.style.display = "block";
-      
-      // オートスキャンループ
       requestAnimationFrame(autoScanLoop);
     } catch (err) {
       alert("ブラウザのカメラ使用を許可してください。");
-      logIcon.innerHTML = "❌";
-      logText.innerHTML = "起動失敗: " + err.name;
+      logIcon.innerHTML = "❌"; logText.innerHTML = "起動失敗: " + err.name;
     }
   }
 
@@ -204,13 +182,9 @@
       canvasElement.height = video.videoHeight;
       canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
 
-      const vWidth = video.videoWidth;
-      const vHeight = video.videoHeight;
-      
-      // ★離しても読めるように、枠内の切り抜き処理を最適化
+      const vWidth = video.videoWidth; const vHeight = video.videoHeight;
       const cropSize = Math.min(vWidth, vHeight) * 0.6;
-      const cropX = (vWidth - cropSize) / 2;
-      const cropY = (vHeight - cropSize) / 2;
+      const cropX = (vWidth - cropSize) / 2; const cropY = (vHeight - cropSize) / 2;
 
       const imageData = canvas.getImageData(cropX, cropY, cropSize, cropSize);
       const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
@@ -218,32 +192,27 @@
       if (code && code.data.trim() !== "") {
         const now = Date.now();
         if (code.data === lastScannedData && (now - lastScannedTime) < 3000) {
-          logContainer.style.background = "#e8f5e9";
-          logIcon.innerHTML = "⏳";
-          logIcon.className = "icon-box"; 
-          logText.style.color = "#7f8c8d";
-          logText.innerHTML = "同じQRコードを検出中<br><small style='color:#95a5a6;'>二重送信を防ぐためロックしています</small>";
+          logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "⏳"; logIcon.className = "icon-box"; 
+          logText.style.color = "#7f8c8d"; logText.innerHTML = "同じQRコードを検出中<br><small style='color:#95a5a6;'>二重送信を防ぐためロックしています</small>";
         } else {
-          lastScannedData = code.data;
-          lastScannedTime = now;
-
+          lastScannedData = code.data; lastScannedTime = now;
           if (navigator.vibrate) navigator.vibrate(100); 
           
-          guideOverlay.classList.add("success");
-          logContainer.style.background = "#e8f5e9";
-          logIcon.innerHTML = "🎉";
-          logIcon.className = "icon-box icon-bounce";
-          logText.style.color = "#28a745";
-          logText.innerHTML = "読み込み成功！保存します";
-          
-          setTimeout(() => {
-            guideOverlay.classList.remove("success");
-          }, 400);
+          // ★【核心：アイデア①】スマホが「今」検知したミリ秒時間を取得
+          const d = new Date();
+          const clientTimeStr = d.getFullYear() + "/" + String(d.getMonth() + 1).padStart(2, '0') + "/" + String(d.getDate()).padStart(2, '0') + " " +
+                                String(d.getHours()).padStart(2, '0') + ":" + String(d.getMinutes()).padStart(2, '0') + ":" + String(d.getSeconds()).padStart(2, '0') + "." +
+                                String(d.getMilliseconds()).padStart(3, '0');
 
-          const colLetter = String.fromCharCode(64 + currentColumn);
-          sendQueue.push({ qrValue: code.data, col: currentColumn, label: colLetter });
+          guideOverlay.classList.add("success");
+          logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "🎉"; logIcon.className = "icon-box icon-bounce";
+          logText.style.color = "#28a745"; logText.innerHTML = "読み込み成功！保存します";
+          setTimeout(() => { guideOverlay.classList.remove("success"); }, 400);
+
+          // GASに「データ用の列番号」と「スマホ検知時間」をまとめて送る
+          sendQueue.push({ qrValue: code.data, col: currentStartColumn, clientTime: clientTimeStr, boxNum: currentBoxNumber });
           
-          addHistoryLog("⏳ 予約追加: (" + colLetter + "列) " + code.data, "wait");
+          addHistoryLog("⏳ 箱" + currentBoxNumber + "に予約追加: " + code.data, "wait");
           processQueue();
         }
       } else {
@@ -255,62 +224,50 @@
 
   function diagnoseImageError(imageData) {
     if (sendQueue.length > 0) {
-      logContainer.style.background = "#fff3cd";
-      logIcon.innerHTML = "🚀";
-      logIcon.className = "icon-box icon-bounce";
-      logText.style.color = "#e67e22";
-      logText.innerHTML = "GASへ通信中... (残り " + sendQueue.length + " 件)";
+      logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "🚀"; logIcon.className = "icon-box icon-bounce";
+      logText.style.color = "#e67e22"; logText.innerHTML = "GASへ通信中... (残り " + sendQueue.length + " 件)";
       return;
     }
-
-    const data = imageData.data;
-    let totalBrightness = 0;
-    for (let i = 0; i < data.length; i += 40) {
-      totalBrightness += (data[i] + data[i+1] + data[i+2]) / 3;
-    }
+    const data = imageData.data; let totalBrightness = 0;
+    for (let i = 0; i < data.length; i += 40) { totalBrightness += (data[i] + data[i+1] + data[i+2]) / 3; }
     const avgBrightness = totalBrightness / (data.length / 40);
 
     if (avgBrightness < 45) {
-      logContainer.style.background = "#eceff1";
-      logIcon.innerHTML = "💡";
-      logIcon.className = "icon-box icon-blink";
-      logText.style.color = "#37474f";
-      logText.innerHTML = "画面が暗すぎます！<br><small style='font-weight:normal; color:#78909c;'>明るい場所へ移動するか、ライトを当ててください</small>";
+      logContainer.style.background = "#eceff1"; logIcon.innerHTML = "💡"; logIcon.className = "icon-box icon-blink";
+      logText.style.color = "#37474f"; logText.innerHTML = "画面が暗すぎます！<br><small style='font-weight:normal; color:#78909c;'>明るい場所へ移動するか、ライトを当ててください</small>";
     } else {
-      logContainer.style.background = "#fff3cd";
-      logIcon.innerHTML = "🔍";
-      logIcon.className = "icon-box icon-zoom";
-      logText.style.color = "#d35400";
-      logText.innerHTML = "枠内にQRコードを映してください<br><small style='font-weight:normal; color:#e67e22;'>少し離してピントを合わせると読みやすくなります</small>";
+      logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "🔍"; logIcon.className = "icon-box icon-zoom";
+      logText.style.color = "#d35400"; logText.innerHTML = "枠内にQRコードを映してください<br><small style='font-weight:normal; color:#e67e22;'>少し離してピントを合わせると読みやすくなります</small>";
     }
   }
 
   function processQueue() {
     if (isSending || sendQueue.length === 0) return;
     isSending = true;
-
     const currentData = sendQueue[0];
 
     fetch(GAS_URL, {
       method: "POST",
-      body: JSON.stringify({ qrValue: currentData.qrValue, col: currentData.col })
+      body: JSON.stringify({ qrValue: currentData.qrValue, col: currentData.col, clientTime: currentData.clientTime })
     })
     .then(() => {
       sendQueue.shift(); 
-      addHistoryLog("✓ 保存完了: (" + currentData.label + "列) " + currentData.qrValue, "ok");
+      addHistoryLog("✓ 保存完了: (箱" + currentData.boxNum + ") " + currentData.qrValue, "ok");
     })
-    .catch((err) => {
-      addHistoryLog("⚠️ 送信エラー。再試行します", "ng");
-    })
-    .finally(() => {
-      isSending = false; 
-      processQueue();
-    });
+    .catch((err) => { addHistoryLog("⚠️ 送信エラー。再試行します", "ng"); })
+    .finally(() => { isSending = false; processQueue(); });
   }
 
-  function moveToNextColumn() {
-    currentColumn++;
-    statusDiv.innerHTML = "入力先: " + String.fromCharCode(64 + currentColumn) + "列 (" + currentColumn + ")";
+  // ★【改善】「次の列」ボタンを「3列ずつのブロック移動」に変更
+  function moveToNextBox() {
+    currentBoxNumber++;
+    currentStartColumn += 3; // 3列右へスキップ
+    
+    // 表示用のアルファベット範囲を計算 (例: A-C, D-F, G-I...)
+    const startLetter = String.fromCharCode(64 + currentStartColumn);
+    const endLetter = String.fromCharCode(64 + currentStartColumn + 2);
+    
+    statusDiv.innerHTML = "現在の入力: " + currentBoxNumber + "つ目の箱 (" + startLetter + "-" + endLetter + "列)";
     lastScannedData = ""; 
   }
 </script>
