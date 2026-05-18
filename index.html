@@ -3,31 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【URL固定版】QR在庫管理</title>
+  <title>【爆速タイマー版】QR在庫管理</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; }
     .container { max-width: 500px; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
-    
-    /* ステータス・作業者表示エリア */
     .top-info { background: #e3f2fd; padding: 8px 12px; border-radius: 6px; border: 1px solid #90caf9; font-weight: bold; font-size: 1.05rem; margin-bottom: 5px; color: #0d47a1; display: flex; justify-content: space-between; align-items: center; }
     .worker-badge { background: #0d47a1; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.9rem; }
-    
-    /* 手動切り替えボタン（URL指定がない時だけ表示） */
     #manual-nav { display: none; background: #fff3cd; padding: 6px; border-radius: 6px; border: 1px solid #ffeeba; margin-bottom: 5px; justify-content: space-between; align-items: center; }
-
-    /* 文字入力エリア */
     .input-area { background: #f5f5f5; padding: 8px; border-radius: 6px; border: 1px solid #cfd8dc; margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
     .input-area label { font-size: 0.85rem; font-weight: bold; color: #37474f; white-space: nowrap; }
     .input-area input { flex: 1; padding: 8px; font-size: 1rem; border: 1px solid #b0bec5; border-radius: 4px; box-sizing: border-box; }
-
     #log-container { margin: 5px 0; min-height: 65px; background: #e8f5e9; padding: 8px; border-radius: 6px; border: 1px solid #c8e6c9; display: flex; align-items: center; justify-content: center; gap: 15px; }
     #log-text { font-size: 1.05rem; font-weight: bold; color: #1a73e8; text-align: left; line-height: 1.3; }
     .icon-box { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 2rem; position: relative; }
     @keyframes zoomInOut { 0% { transform: scale(0.9); } 50% { transform: scale(1.1); } 100% { transform: scale(0.9); } }
     .icon-zoom { animation: zoomInOut 1.2s infinite ease-in-out; }
-    @keyframes blink { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
-    .icon-blink { animation: blink 1s infinite ease-in-out; }
     @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
     .icon-bounce { animation: bounce 0.4s infinite ease-in-out; }
     .camera-wrapper { position: relative; width: 100%; max-width: 320px; margin: 5px auto; display: none; border-radius: 8px; border: 3px solid #2c3e50; background: #000; box-sizing: border-box; aspect-ratio: 4 / 3; overflow: hidden; }
@@ -63,7 +54,7 @@
 
   <div class="input-area">
     <label for="memoInput">📍 位置コード:</label>
-    <input type="text" id="memoInput" placeholder="例: A-1、左-手前 など">
+    <input type="text" id="memoInput" placeholder="例: A-1、B-10 など">
   </div>
   
   <div id="log-container">
@@ -79,7 +70,7 @@
   </div>
   
   <div class="history-container">
-    <div class="history-title">⏱ 履歴（URL自動割当モード）</div>
+    <div class="history-title">⏱ 履歴（タイマー一括送信モード）</div>
     <ul id="historyList">
       <li style="color:#bdc3c7;">履歴はここに表示されます</li>
     </ul>
@@ -89,8 +80,10 @@
 </div>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.30 (URL作業者固定・視認性向上版)";
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbywzU80a0Y7oa0Yb--navNWSdS4QBmIuctXnJ2AVIOhmm1ZrHEWpyLndroS91AMXx4/exec";
+  const VERSION_TEXT = "バージョン: Ver 1.40 (タイマー式一括爆速送信版)";
+  
+  // ★ここに新しいGASのウェブアプリURLを貼り付けてください
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbwAS_hzFyKO7jhcAg_OMfjQm6A8OuPRqUk3QY97e0GnJ0hr3CVQEbFvyJv5I_JTycgz/exec";
 
   const video = document.createElement("video");
   const canvasElement = document.getElementById("canvas");
@@ -107,22 +100,28 @@
   const memoInput = document.getElementById("memoInput");
   const manualNav = document.getElementById("manual-nav");
   
-  // URLパラメータの解析ロジック
   let workerParam = new URLSearchParams(window.location.search).get('worker');
   let currentBoxNumber = 1;
   let currentStartColumn = 1; 
   let workerName = "作業員A";
 
-  // URLパラメータに基づいて初期化
+  let sendQueue = [];       
+  let isSending = false;    
+  let lastScannedData = "";
+  let lastScannedTime = 0;
+
   initWorkerSettings();
+
+  // 定期送信タイマー起動（3秒＝3000ミリ秒ごと）
+  setInterval(processQueueBulk, 3000);
 
   function initWorkerSettings() {
     if (workerParam) {
       workerParam = workerParam.toUpperCase();
-      manualNav.style.display = "none"; // パラメータがある時は手動ボタンを隠す
+      manualNav.style.display = "none"; 
     } else {
-      workerParam = "A"; // パラメータがない場合のデフォルト
-      manualNav.style.display = "flex"; // テスト用に手動ボタンを出す
+      workerParam = "A"; 
+      manualNav.style.display = "flex"; 
     }
 
     if (workerParam === "B") {
@@ -137,24 +136,18 @@
     sheetInfoSpan.innerHTML = "端末" + currentBoxNumber + " シート";
   }
 
-  // テスト用：手動で作業者を切り替える関数
   function changeWorkerManually(type) {
     workerParam = type;
     initWorkerSettings();
     lastScannedData = ""; 
     addHistoryLog("➔ テスト用切り替え: " + workerName + "に変更しました", "wait");
   }
-  
-  let sendQueue = [];       
-  let isSending = false;    
-  let lastScannedData = "";
-  let lastScannedTime = 0;
 
   document.getElementById("version").innerText = VERSION_TEXT;
 
   function getTimeStr() {
     const d = new Date();
-    return "[" + String(d.getHours()).padStart(2, '0') + ":" + String(d.getMinutes()).padStart(2, '0') + ":" + String(d.getSeconds()).padStart(2, '0') + "." + String(d.getMilliseconds()).padStart(3, '0') + "] ";
+    return "[" + String(d.getHours()).padStart(2, '0') + ":" + String(d.getMinutes()).padStart(2, '0') + ":" + String(d.getSeconds()).padStart(2, '0') + "] ";
   }
 
   function addHistoryLog(message, type) {
@@ -208,16 +201,15 @@
                                 String(d.getMilliseconds()).padStart(3, '0');
 
           guideOverlay.classList.add("success");
-          logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "🎉"; logIcon.className = "icon-box icon-bounce";
-          logText.style.color = "#28a745"; logText.innerHTML = "成功！" + workerName + "のシートへ保存";
+          logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📷"; logIcon.className = "icon-box icon-bounce";
+          logText.style.color = "#28a745"; logText.innerHTML = "スキャン完了！送信待ちポケットへ保存";
           setTimeout(() => { guideOverlay.classList.remove("success"); }, 400);
 
           const userMemo = memoInput.value.trim();
 
-          // GAS側へ、固定されたパラメータ情報を乗せてキューに追加
+          // 送信待ちリスト（ポケット）にデータを放り込む（ここでは通信しないので一瞬で終わる）
           sendQueue.push({ qrValue: code.data, col: currentStartColumn, clientTime: clientTimeStr, memo: userMemo, worker: workerName });
-          addHistoryLog("⏳ 送信中: " + code.data.substring(0,12) + "...", "wait");
-          processQueue();
+          addHistoryLog("📥 保持（送信待ち）: " + code.data.substring(0,12) + "...", "wait");
         }
       } else {
         diagnoseImageError(imageData);
@@ -227,30 +219,45 @@
   }
 
   function diagnoseImageError(imageData) {
-    if (sendQueue.length > 0) {
+    if (isSending) {
       logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "🚀"; logIcon.className = "icon-box icon-bounce";
-      logText.style.color = "#e67e22"; logText.innerHTML = "GASへ通信中... (残り " + sendQueue.length + " 件)";
+      logText.style.color = "#e67e22"; logText.innerHTML = "GASへまとめて一括送信中...";
+      return;
+    }
+    if (sendQueue.length > 0) {
+      logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📥"; logIcon.className = "icon-box";
+      logText.style.color = "#1a73e8"; logText.innerHTML = "送信待ちデータが " + sendQueue.length + " 件あります<br><small style='color:#7f8c8d;'>まもなく自動送信されます</small>";
       return;
     }
     logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "🔍"; logIcon.className = "icon-box icon-zoom";
     logText.style.color = "#d35400"; logText.innerHTML = "枠内にQRコードを映してください<br><small style='color:#7f8c8d;'>ログイン中: " + workerName + "</small>";
   }
 
-  function processQueue() {
+  // ★ 3秒ごとに勝手に発動する一括送信マシーン
+  function processQueueBulk() {
     if (isSending || sendQueue.length === 0) return;
     isSending = true;
-    const currentData = sendQueue[0];
+
+    // 現在ポケットに入っているデータをすべて取り出して送信対象にする
+    const bulkData = [...sendQueue];
+    const sendCount = bulkData.length;
+
     fetch(GAS_URL, {
       method: "POST",
-      body: JSON.stringify({ qrValue: currentData.qrValue, col: currentData.col, clientTime: currentData.clientTime, memo: currentData.memo })
+      body: JSON.stringify({ dataList: bulkData })
     })
     .then((response) => response.json())
     .then((res) => {
-      sendQueue.shift();
-      addHistoryLog("✓ 保存完了: (" + currentData.worker + "専用シート)", "ok");
+      // 送信が成功した件数分だけポケットから削除する
+      sendQueue.splice(0, sendCount);
+      addHistoryLog("✓ 送信完了: " + sendCount + " 件のデータをスプシへ同期しました", "ok");
     })
-    .catch((err) => { addHistoryLog("⚠️ 再試行します", "ng"); })
-    .finally(() => { isSending = false; processQueue(); });
+    .catch((err) => { 
+      addHistoryLog("⚠️ 通信エラー：次回のタイマーで再試行します", "ng"); 
+    })
+    .finally(() => { 
+      isSending = false; 
+    });
   }
 </script>
 </body>
