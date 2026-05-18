@@ -3,33 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【バイブ打ち分け版】QR在庫管理</title>
+  <title>【方向ボタン搭載版】QR在庫管理</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; }
+    body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; transition: background 0.3s; }
+    /* モードごとの背景色変化 */
+    body.mode-desc { background: #e3f2fd; } /* 奥から手前（青） */
+    body.mode-asc { background: #e8f5e9; }  /* 手前から奥（緑） */
+
     .container { max-width: 500px; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
-    .top-info { background: #e3f2fd; padding: 8px 12px; border-radius: 6px; border: 1px solid #90caf9; font-weight: bold; font-size: 1.05rem; margin-bottom: 5px; color: #0d47a1; display: flex; justify-content: space-between; align-items: center; }
-    .worker-badge { background: #0d47a1; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.9rem; }
+    .top-info { background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #cfd8dc; font-weight: bold; font-size: 1.05rem; margin-bottom: 5px; color: #37474f; display: flex; justify-content: space-between; align-items: center; }
+    .worker-badge { background: #37474f; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.9rem; }
+    
+    /* 🚶‍♂️ 方向切り替えボタンのエリア */
+    .direction-area { margin-bottom: 8px; display: flex; gap: 8px; }
+    .dir-btn { flex: 1; padding: 12px 5px; font-size: 1.1rem; font-weight: bold; border: 3px solid #ccc; border-radius: 8px; cursor: pointer; background: #f5f5f5; color: #757575; transition: all 0.2s; -webkit-appearance: none; }
+    .dir-btn.active-desc { background: #1a73e8; color: white; border-color: #0d47a1; box-shadow: 0 4px 10px rgba(26,115,232,0.4); }
+    .dir-btn.active-asc { background: #28a745; color: white; border-color: #1e7e34; box-shadow: 0 4px 10px rgba(40,167,69,0.4); }
+
     #manual-nav { display: none; background: #fff3cd; padding: 6px; border-radius: 6px; border: 1px solid #ffeeba; margin-bottom: 5px; justify-content: space-between; align-items: center; }
     .input-area { background: #f5f5f5; padding: 8px; border-radius: 6px; border: 1px solid #cfd8dc; margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
     .input-area label { font-size: 0.85rem; font-weight: bold; color: #37474f; white-space: nowrap; }
     .input-area input { flex: 1; padding: 8px; font-size: 1rem; border: 1px solid #b0bec5; border-radius: 4px; box-sizing: border-box; }
-    #log-container { margin: 5px 0; min-height: 65px; background: #e8f5e9; padding: 8px; border-radius: 6px; border: 1px solid #c8e6c9; display: flex; align-items: center; justify-content: center; gap: 15px; }
-    #log-text { font-size: 1.05rem; font-weight: bold; color: #1a73e8; text-align: left; line-height: 1.3; }
+    
+    #log-container { margin: 5px 0; min-height: 65px; background: #f5f5f5; padding: 8px; border-radius: 6px; border: 1px solid #cfd8dc; display: flex; align-items: center; justify-content: center; gap: 15px; }
+    #log-text { font-size: 1.05rem; font-weight: bold; color: #37474f; text-align: left; line-height: 1.3; }
     .icon-box { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 2rem; position: relative; }
     @keyframes zoomInOut { 0% { transform: scale(0.9); } 50% { transform: scale(1.1); } 100% { transform: scale(0.9); } }
     .icon-zoom { animation: zoomInOut 1.2s infinite ease-in-out; }
     @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
     .icon-bounce { animation: bounce 0.4s infinite ease-in-out; }
+    
     .camera-wrapper { position: relative; width: 100%; max-width: 320px; margin: 5px auto; display: none; border-radius: 8px; border: 3px solid #2c3e50; background: #000; box-sizing: border-box; aspect-ratio: 4 / 3; overflow: hidden; }
     #canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
     .qr-guide-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 200px; border: 5px dashed #e67e22; border-radius: 10px; opacity: 0.9; pointer-events: none; box-sizing: border-box; transition: border-color 0.2s, background-color 0.2s; }
     .qr-guide-overlay.success { border-color: #2ecc71; background: rgba(46, 204, 113, 0.15); }
     .btn { color: white; padding: 14px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 8px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
-    #cameraBtn { background: #28a745; }
+    #cameraBtn { background: #37474f; }
+    
     .history-container { margin-top: 12px; text-align: left; background: #2c3e50; color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; }
     .history-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid #34495e; padding-bottom: 4px; color: #bdc3c7; }
-    #historyList { max-height: 180px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 0; margin: 0; list-style: none; }
+    #historyList { max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 0; margin: 0; list-style: none; }
     #historyList li { padding: 5px 0; border-bottom: 1px solid #34495e; line-height: 1.3; }
     .history-ok { color: #2ecc71; }
     .history-ng { color: #e74c3c; }
@@ -43,6 +57,11 @@
   <div class="top-info">
     <span id="status">👤 作業者: 判定中...</span>
     <span id="sheet-info" class="worker-badge">端末1 シート</span>
+  </div>
+
+  <div class="direction-area">
+    <button id="btnDesc" class="dir-btn" onclick="setDirection('desc')">⬇️ 奥から手前へ<br><small>(10 → 1の順)</small></button>
+    <button id="btnAsc" class="dir-btn" onclick="setDirection('asc')">⬆️ 手前から奥へ<br><small>(1 → 10の順)</small></button>
   </div>
 
   <div id="manual-nav">
@@ -70,7 +89,7 @@
   </div>
   
   <div class="history-container">
-    <div class="history-title">⏱ 履歴（バイブ打ち分け機能搭載版）</div>
+    <div class="history-title">⏱ 履歴（方向ボタン連動モード）</div>
     <ul id="historyList">
       <li style="color:#bdc3c7;">履歴はここに表示されます</li>
     </ul>
@@ -80,10 +99,10 @@
 </div>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.42 (バイブ打ち分け機能搭載版)";
+  const VERSION_TEXT = "バージョン: Ver 1.50 (方向切り替えボタン搭載版)";
   
   // ★ここにGASのウェブアプリURLを貼り付けてください
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbwAS_hzFyKO7jhcAg_OMfjQm6A8OuPRqUk3QY97e0GnJ0hr3CVQEbFvyJv5I_JTycgz/exec";
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbxs5f8Q0ASNrwQfrYJHclpkl8R8R2cx6Xh0plpXM2qogKMiBhUSSTSk_jWezAGq_DBj/exec";
 
   const video = document.createElement("video");
   const canvasElement = document.getElementById("canvas");
@@ -109,9 +128,13 @@
   let isSending = false;    
   let lastScannedData = "";
   let lastScannedTime = 0;
-  let isLockVibrating = false; // 重複バイブの連続発生を防ぐフラグ
+  let isLockVibrating = false;
+  
+  // 進行方向の初期状態（desc = 奥から手前）
+  let currentDirection = "desc"; 
 
   initWorkerSettings();
+  setDirection("desc"); // 初期カラーを設定
   setInterval(processQueueBulk, 3000);
 
   function initWorkerSettings() {
@@ -133,6 +156,25 @@
     
     statusDiv.innerHTML = "👤 作業者: " + workerName;
     sheetInfoSpan.innerHTML = "端末" + currentBoxNumber + " シート";
+  }
+
+  // ★ 進行方向ボタンを切り替える関数
+  function setDirection(dir) {
+    currentDirection = dir;
+    const btnDesc = document.getElementById("btnDesc");
+    const btnAsc = document.getElementById("btnAsc");
+    
+    if (dir === "desc") {
+      btnDesc.className = "dir-btn active-desc";
+      btnAsc.className = "dir-btn";
+      document.body.className = "mode-desc";
+      addHistoryLog("🔄 モード切替: 【奥から手前】に設定しました", "wait");
+    } else {
+      btnDesc.className = "dir-btn";
+      btnAsc.className = "dir-btn active-asc";
+      document.body.className = "mode-asc";
+      addHistoryLog("🔄 モード切替: 【手前から奥】に設定しました", "wait");
+    }
   }
 
   function changeWorkerManually(type) {
@@ -159,15 +201,14 @@
     historyList.insertBefore(li, historyList.firstChild);
   }
 
-  // ★バイブレーション制御マシーン
   function triggerVibrate(mode) {
     if (navigator.vibrate) {
-      navigator.vibrate(0); // リセット
+      navigator.vibrate(0); 
       setTimeout(() => {
         if (mode === "success") {
-          navigator.vibrate([120]); // 正常：ブッ（1回）
+          navigator.vibrate([120]); 
         } else if (mode === "dup-error") {
-          navigator.vibrate([80, 60, 80]); // 重複：ブブッ（2回）
+          navigator.vibrate([80, 60, 80]); 
         }
       }, 10);
     }
@@ -205,18 +246,16 @@
           logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "⏳"; logIcon.className = "icon-box"; 
           logText.style.color = "#d35400"; logText.innerHTML = "同じQRコードを検出（弾きました）<br><small style='color:#7f8c8d;'>連投防止ロック中</small>";
           
-          // 同じQRコードをカメラが捉え続けている間、秒間何十回も「ブブッ」と鳴るのを防ぐ防波堤
           if (!isLockVibrating) {
             isLockVibrating = true;
-            triggerVibrate("dup-error"); // 弾いた時：ブブッ（2回）
-            setTimeout(() => { isLockVibrating = false; }, 1500); // 重複通知は一度鳴らしたら1.5秒間は静かにさせる
+            triggerVibrate("dup-error"); 
+            setTimeout(() => { isLockVibrating = false; }, 1500); 
           }
         } else {
-          // 新しいQRコードの読み込みに成功
           lastScannedData = code.data; lastScannedTime = now;
-          isLockVibrating = false; // 新しいQRが読めたのでエラー用フラグは即リセット
+          isLockVibrating = false; 
           
-          triggerVibrate("success"); // 正常読込：ブッ（1回）
+          triggerVibrate("success"); 
           
           const d = new Date();
           const clientTimeStr = d.getFullYear() + "/" + String(d.getMonth() + 1).padStart(2, '0') + "/" + String(d.getDate()).padStart(2, '0') + " " +
@@ -228,10 +267,14 @@
           logText.style.color = "#28a745"; logText.innerHTML = "スキャン完了！送信待ちポケットへ保存";
           setTimeout(() => { guideOverlay.classList.remove("success"); }, 400);
 
-          const userMemo = memoInput.value.trim();
+          // ★【重要】位置コードの後ろに「歩行モード（@ASC または @DESC）」をこっそり合体させて送る
+          let userMemo = memoInput.value.trim();
+          if (userMemo !== "") {
+            userMemo = userMemo + "@" + currentDirection.toUpperCase();
+          }
 
           sendQueue.push({ qrValue: code.data, col: currentStartColumn, clientTime: clientTimeStr, memo: userMemo, worker: workerName });
-          addHistoryLog("📥 保持（送信待ち）: " + code.data.substring(0,12) + "...", "wait");
+          addHistoryLog("📥 保持: " + code.data.substring(0,12) + "... (" + (currentDirection==="desc"?"奥":"手前") + ")", "wait");
         }
       } else {
         diagnoseImageError(imageData);
@@ -251,8 +294,8 @@
       logText.style.color = "#1a73e8"; logText.innerHTML = "送信待ちデータが " + sendQueue.length + " 件あります<br><small style='color:#7f8c8d;'>まもなく自動送信されます</small>";
       return;
     }
-    logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "🔍"; logIcon.className = "icon-box icon-zoom";
-    logText.style.color = "#d35400"; logText.innerHTML = "枠内にQRコードを映してください<br><small style='color:#7f8c8d;'>ログイン中: " + workerName + "</small>";
+    logContainer.style.background = "#ffffff"; logIcon.innerHTML = "🔍"; logIcon.className = "icon-box icon-zoom";
+    logText.style.color = "#d35400"; logText.innerHTML = "枠内にQRコードを映してください<br><small style='color:#7f8c8d;'>現在の方向: " + (currentDirection==="desc"?"⬇️奥から手前":"⬆️手前から奥") + "</small>";
   }
 
   function processQueueBulk() {
