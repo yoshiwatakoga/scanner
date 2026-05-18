@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【UI改良版】QR在庫管理</title>
+  <title>【完全版】QR在庫管理</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; transition: background 0.3s; }
@@ -17,7 +17,7 @@
     /* 🚶‍♂️ 進行方向切り替えボタン（矢印特大版） */
     .direction-area { margin-bottom: 8px; display: flex; gap: 8px; }
     .dir-btn { flex: 1; padding: 8px 5px; font-size: 1.1rem; font-weight: bold; border: 3px solid #ccc; border-radius: 8px; cursor: pointer; background: #f5f5f5; color: #757575; transition: all 0.2s; -webkit-appearance: none; line-height: 1.2; }
-    .dir-btn .big-arrow { font-size: 2rem; display: block; margin-bottom: 2px; } /* 矢印を巨大化 */
+    .dir-btn .big-arrow { font-size: 2rem; display: block; margin-bottom: 2px; }
     .dir-btn.active-desc { background: #1a73e8; color: white; border-color: #0d47a1; box-shadow: 0 4px 10px rgba(26,115,232,0.4); }
     .dir-btn.active-asc { background: #28a745; color: white; border-color: #1e7e34; box-shadow: 0 4px 10px rgba(40,167,69,0.4); }
 
@@ -39,10 +39,9 @@
     .qr-guide-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 200px; border: 5px dashed #e67e22; border-radius: 10px; opacity: 0.9; pointer-events: none; box-sizing: border-box; transition: border-color 0.2s, background-color 0.2s; }
     .qr-guide-overlay.success { border-color: #2ecc71; background: rgba(46, 204, 113, 0.15); }
     
-    /* 🛠️ ボタンのスタイル群 */
     .btn { color: white; padding: 14px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 8px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
     #cameraBtn { background: #37474f; }
-    #nextRowBtn { background: #28a745; display: none; margin-bottom: 5px; } /* 次の行ボタン用の緑 */
+    #nextRowBtn { background: #28a745; display: none; margin-bottom: 5px; } 
     
     .history-container { margin-top: 12px; text-align: left; background: #2c3e50; color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; }
     .history-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid #34495e; padding-bottom: 4px; color: #bdc3c7; }
@@ -94,7 +93,7 @@
   <button id="nextRowBtn" onclick="moveToNextRowManual()" class="btn">⏭️ 空白のまま次の位置へ進む</button>
   
   <div class="history-container">
-    <div class="history-title">⏱ 履歴（バイブ混線防止・UI改良版）</div>
+    <div class="history-title">⏱ 履歴（進行方向連動モード）</div>
     <ul id="historyList">
       <li style="color:#bdc3c7;">履歴はここに表示されます</li>
     </ul>
@@ -104,7 +103,7 @@
 </div>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.52 (UI改良・ボタン復活版)";
+  const VERSION_TEXT = "バージョン: Ver 1.52 (UI改良・完全復旧版)";
   
   // ★ここにGASのウェブアプリURLを貼り付けてください
   const GAS_URL = "https://script.google.com/macros/s/AKfycbxs5f8Q0ASNrwQfrYJHclpkl8R8R2cx6Xh0plpXM2qogKMiBhUSSTSk_jWezAGq_DBj/exec";
@@ -137,8 +136,10 @@
   let preventErrorVibeUntil = 0; 
   let currentDirection = "desc"; 
 
+  // ★起動時に作業者選択とバージョンを画面に反映する命令
   initWorkerSettings();
   setDirection("desc"); 
+  document.getElementById("version").innerText = VERSION_TEXT; // バージョン表示を表示
   setInterval(processQueueBulk, 3000);
 
   function initWorkerSettings() {
@@ -180,13 +181,11 @@
     }
   }
 
-  // ★「次の行へ進む」を手動で実行する関数
   function moveToNextRowManual() {
-    lastScannedData = ""; // 連投ロック解除
-    triggerVibrate("success"); // ブッと確認振動
+    lastScannedData = ""; 
+    triggerVibrate("success"); 
     addHistoryLog("⏭️ スキップ: 次の位置へ進みます", "wait");
     
-    // スプシ側へ空文字データをダミー送信して行を進めるための処理
     const d = new Date();
     const clientTimeStr = d.getFullYear() + "/" + String(d.getMonth() + 1).padStart(2, '0') + "/" + String(d.getDate()).padStart(2, '0') + " " +
                           String(d.getHours()).padStart(2, '0') + ":" + String(d.getMinutes()).padStart(2, '0') + ":" + String(d.getSeconds()).padStart(2, '0') + "." +
@@ -197,7 +196,6 @@
       userMemo = userMemo + "@" + currentDirection.toUpperCase();
     }
     
-    // QRコードの値を空白にしてキューに入れる
     sendQueue.push({ qrValue: "（空白スキップ）", col: currentStartColumn, clientTime: clientTimeStr, memo: userMemo, worker: workerName });
   }
 
@@ -207,8 +205,6 @@
     lastScannedData = ""; 
     addHistoryLog("➔ テスト用切り替え: " + workerName + "に変更しました", "wait");
   }
-
-  document.getElementById("version").innerText = VERSION_TEXT;
 
   function getTimeStr() {
     const d = new Date();
@@ -248,7 +244,7 @@
       await video.play();
       document.getElementById("cameraBtn").style.display = "none";
       cameraWrapper.style.display = "block";
-      nextRowBtn.style.display = "block"; // カメラ起動時に一緒に表示
+      nextRowBtn.style.display = "block"; 
       requestAnimationFrame(autoScanLoop);
     } catch (err) {
       alert("カメラの使用を許可してください。");
@@ -313,4 +309,36 @@
     }
     if (sendQueue.length > 0) {
       logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📥"; logIcon.className = "icon-box";
-      logText.style.color = "#1a7
+      logText.style.color = "#1a73e8"; logText.innerHTML = "送信待ちデータが " + sendQueue.length + " 件あります<br><small style='color:#7f8c8d;'>まもなく自動送信されます</small>";
+      return;
+    }
+    logContainer.style.background = "#ffffff"; logIcon.innerHTML = "🔍"; logIcon.className = "icon-box icon-zoom";
+    logText.style.color = "#d35400"; logText.innerHTML = "枠内にQRコードを映してください<br><small style='color:#7f8c8d;'>現在の方向: " + (currentDirection==="desc"?"⬇️奥から手前":"⬆️手前から奥") + "</small>";
+  }
+
+  function processQueueBulk() {
+    if (isSending || sendQueue.length === 0) return;
+    isSending = true;
+
+    const bulkData = [...sendQueue];
+    const sendCount = bulkData.length;
+
+    fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify({ dataList: bulkData })
+    })
+    .then((response) => response.json())
+    .then((res) => {
+      sendQueue.splice(0, sendCount);
+      addHistoryLog("✓ 送信完了: " + sendCount + " 件のデータをスプシへ同期しました", "ok");
+    })
+    .catch((err) => { 
+      addHistoryLog("⚠️ 通信エラー：次回のタイマーで再試行します", "ng"); 
+    })
+    .finally(() => { 
+      isSending = false; 
+    });
+  }
+</script>
+</body>
+</html>
