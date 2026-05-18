@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【爆速タイマー版】QR在庫管理</title>
+  <title>【バイブ打ち分け版】QR在庫管理</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; }
@@ -70,7 +70,7 @@
   </div>
   
   <div class="history-container">
-    <div class="history-title">⏱ 履歴（タイマー一括送信モード）</div>
+    <div class="history-title">⏱ 履歴（バイブ打ち分け機能搭載版）</div>
     <ul id="historyList">
       <li style="color:#bdc3c7;">履歴はここに表示されます</li>
     </ul>
@@ -80,9 +80,9 @@
 </div>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.40 (タイマー式一括爆速送信版)";
+  const VERSION_TEXT = "バージョン: Ver 1.42 (バイブ打ち分け機能搭載版)";
   
-  // ★ここに新しいGASのウェブアプリURLを貼り付けてください
+  // ★ここにGASのウェブアプリURLを貼り付けてください
   const GAS_URL = "https://script.google.com/macros/s/AKfycbwAS_hzFyKO7jhcAg_OMfjQm6A8OuPRqUk3QY97e0GnJ0hr3CVQEbFvyJv5I_JTycgz/exec";
 
   const video = document.createElement("video");
@@ -109,10 +109,9 @@
   let isSending = false;    
   let lastScannedData = "";
   let lastScannedTime = 0;
+  let isLockVibrating = false; // 重複バイブの連続発生を防ぐフラグ
 
   initWorkerSettings();
-
-  // 定期送信タイマー起動（3秒＝3000ミリ秒ごと）
   setInterval(processQueueBulk, 3000);
 
   function initWorkerSettings() {
@@ -160,6 +159,20 @@
     historyList.insertBefore(li, historyList.firstChild);
   }
 
+  // ★バイブレーション制御マシーン
+  function triggerVibrate(mode) {
+    if (navigator.vibrate) {
+      navigator.vibrate(0); // リセット
+      setTimeout(() => {
+        if (mode === "success") {
+          navigator.vibrate([120]); // 正常：ブッ（1回）
+        } else if (mode === "dup-error") {
+          navigator.vibrate([80, 60, 80]); // 重複：ブブッ（2回）
+        }
+      }, 10);
+    }
+  }
+
   async function startCamera() {
     logText.innerHTML = "カメラを起動しています...";
     try {
@@ -189,11 +202,21 @@
       if (code && code.data.trim() !== "") {
         const now = Date.now();
         if (code.data === lastScannedData && (now - lastScannedTime) < 3000) {
-          logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "⏳"; logIcon.className = "icon-box"; 
-          logText.style.color = "#7f8c8d"; logText.innerHTML = "同じQRコードを検出中<br><small style='color:#95a5a6;'>連投防止ロック中</small>";
+          logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "⏳"; logIcon.className = "icon-box"; 
+          logText.style.color = "#d35400"; logText.innerHTML = "同じQRコードを検出（弾きました）<br><small style='color:#7f8c8d;'>連投防止ロック中</small>";
+          
+          // 同じQRコードをカメラが捉え続けている間、秒間何十回も「ブブッ」と鳴るのを防ぐ防波堤
+          if (!isLockVibrating) {
+            isLockVibrating = true;
+            triggerVibrate("dup-error"); // 弾いた時：ブブッ（2回）
+            setTimeout(() => { isLockVibrating = false; }, 1500); // 重複通知は一度鳴らしたら1.5秒間は静かにさせる
+          }
         } else {
+          // 新しいQRコードの読み込みに成功
           lastScannedData = code.data; lastScannedTime = now;
-          if (navigator.vibrate) navigator.vibrate(100); 
+          isLockVibrating = false; // 新しいQRが読めたのでエラー用フラグは即リセット
+          
+          triggerVibrate("success"); // 正常読込：ブッ（1回）
           
           const d = new Date();
           const clientTimeStr = d.getFullYear() + "/" + String(d.getMonth() + 1).padStart(2, '0') + "/" + String(d.getDate()).padStart(2, '0') + " " +
@@ -207,7 +230,6 @@
 
           const userMemo = memoInput.value.trim();
 
-          // 送信待ちリスト（ポケット）にデータを放り込む（ここでは通信しないので一瞬で終わる）
           sendQueue.push({ qrValue: code.data, col: currentStartColumn, clientTime: clientTimeStr, memo: userMemo, worker: workerName });
           addHistoryLog("📥 保持（送信待ち）: " + code.data.substring(0,12) + "...", "wait");
         }
@@ -233,12 +255,10 @@
     logText.style.color = "#d35400"; logText.innerHTML = "枠内にQRコードを映してください<br><small style='color:#7f8c8d;'>ログイン中: " + workerName + "</small>";
   }
 
-  // ★ 3秒ごとに勝手に発動する一括送信マシーン
   function processQueueBulk() {
     if (isSending || sendQueue.length === 0) return;
     isSending = true;
 
-    // 現在ポケットに入っているデータをすべて取り出して送信対象にする
     const bulkData = [...sendQueue];
     const sendCount = bulkData.length;
 
@@ -248,7 +268,6 @@
     })
     .then((response) => response.json())
     .then((res) => {
-      // 送信が成功した件数分だけポケットから削除する
       sendQueue.splice(0, sendCount);
       addHistoryLog("✓ 送信完了: " + sendCount + " 件のデータをスプシへ同期しました", "ok");
     })
