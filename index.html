@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【方向ボタン搭載版】QR在庫管理</title>
+  <title>【UI改良版】QR在庫管理</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; transition: background 0.3s; }
-    /* モードごとの背景色変化 */
-    body.mode-desc { background: #e3f2fd; } /* 奥から手前（青） */
-    body.mode-asc { background: #e8f5e9; }  /* 手前から奥（緑） */
+    body.mode-desc { background: #e3f2fd; } 
+    body.mode-asc { background: #e8f5e9; }  
 
     .container { max-width: 500px; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
     .top-info { background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #cfd8dc; font-weight: bold; font-size: 1.05rem; margin-bottom: 5px; color: #37474f; display: flex; justify-content: space-between; align-items: center; }
     .worker-badge { background: #37474f; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.9rem; }
     
-    /* 🚶‍♂️ 方向切り替えボタンのエリア */
+    /* 🚶‍♂️ 進行方向切り替えボタン（矢印特大版） */
     .direction-area { margin-bottom: 8px; display: flex; gap: 8px; }
-    .dir-btn { flex: 1; padding: 12px 5px; font-size: 1.1rem; font-weight: bold; border: 3px solid #ccc; border-radius: 8px; cursor: pointer; background: #f5f5f5; color: #757575; transition: all 0.2s; -webkit-appearance: none; }
+    .dir-btn { flex: 1; padding: 8px 5px; font-size: 1.1rem; font-weight: bold; border: 3px solid #ccc; border-radius: 8px; cursor: pointer; background: #f5f5f5; color: #757575; transition: all 0.2s; -webkit-appearance: none; line-height: 1.2; }
+    .dir-btn .big-arrow { font-size: 2rem; display: block; margin-bottom: 2px; } /* 矢印を巨大化 */
     .dir-btn.active-desc { background: #1a73e8; color: white; border-color: #0d47a1; box-shadow: 0 4px 10px rgba(26,115,232,0.4); }
     .dir-btn.active-asc { background: #28a745; color: white; border-color: #1e7e34; box-shadow: 0 4px 10px rgba(40,167,69,0.4); }
 
@@ -38,8 +38,11 @@
     #canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
     .qr-guide-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 200px; border: 5px dashed #e67e22; border-radius: 10px; opacity: 0.9; pointer-events: none; box-sizing: border-box; transition: border-color 0.2s, background-color 0.2s; }
     .qr-guide-overlay.success { border-color: #2ecc71; background: rgba(46, 204, 113, 0.15); }
+    
+    /* 🛠️ ボタンのスタイル群 */
     .btn { color: white; padding: 14px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 8px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
     #cameraBtn { background: #37474f; }
+    #nextRowBtn { background: #28a745; display: none; margin-bottom: 5px; } /* 次の行ボタン用の緑 */
     
     .history-container { margin-top: 12px; text-align: left; background: #2c3e50; color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; }
     .history-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid #34495e; padding-bottom: 4px; color: #bdc3c7; }
@@ -60,8 +63,8 @@
   </div>
 
   <div class="direction-area">
-    <button id="btnDesc" class="dir-btn" onclick="setDirection('desc')">⬇️ 奥から手前へ<br><small>(10 → 1の順)</small></button>
-    <button id="btnAsc" class="dir-btn" onclick="setDirection('asc')">⬆️ 手前から奥へ<br><small>(1 → 10の順)</small></button>
+    <button id="btnDesc" class="dir-btn" onclick="setDirection('desc')"><span class="big-arrow">⬇️</span>奥から手前へ</button>
+    <button id="btnAsc" class="dir-btn" onclick="setDirection('asc')"><span class="big-arrow">⬆️</span>手前から奥へ</button>
   </div>
 
   <div id="manual-nav">
@@ -88,8 +91,10 @@
     <div id="guideOverlay" class="qr-guide-overlay"></div>
   </div>
   
+  <button id="nextRowBtn" onclick="moveToNextRowManual()" class="btn">⏭️ 空白のまま次の位置へ進む</button>
+  
   <div class="history-container">
-    <div class="history-title">⏱ 履歴（方向ボタン連動モード）</div>
+    <div class="history-title">⏱ 履歴（バイブ混線防止・UI改良版）</div>
     <ul id="historyList">
       <li style="color:#bdc3c7;">履歴はここに表示されます</li>
     </ul>
@@ -99,7 +104,7 @@
 </div>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.50 (方向切り替えボタン搭載版)";
+  const VERSION_TEXT = "バージョン: Ver 1.52 (UI改良・ボタン復活版)";
   
   // ★ここにGASのウェブアプリURLを貼り付けてください
   const GAS_URL = "https://script.google.com/macros/s/AKfycbxs5f8Q0ASNrwQfrYJHclpkl8R8R2cx6Xh0plpXM2qogKMiBhUSSTSk_jWezAGq_DBj/exec";
@@ -118,6 +123,7 @@
   const historyList = document.getElementById("historyList");
   const memoInput = document.getElementById("memoInput");
   const manualNav = document.getElementById("manual-nav");
+  const nextRowBtn = document.getElementById("nextRowBtn");
   
   let workerParam = new URLSearchParams(window.location.search).get('worker');
   let currentBoxNumber = 1;
@@ -128,13 +134,11 @@
   let isSending = false;    
   let lastScannedData = "";
   let lastScannedTime = 0;
-  let isLockVibrating = false;
-  
-  // 進行方向の初期状態（desc = 奥から手前）
+  let preventErrorVibeUntil = 0; 
   let currentDirection = "desc"; 
 
   initWorkerSettings();
-  setDirection("desc"); // 初期カラーを設定
+  setDirection("desc"); 
   setInterval(processQueueBulk, 3000);
 
   function initWorkerSettings() {
@@ -158,7 +162,6 @@
     sheetInfoSpan.innerHTML = "端末" + currentBoxNumber + " シート";
   }
 
-  // ★ 進行方向ボタンを切り替える関数
   function setDirection(dir) {
     currentDirection = dir;
     const btnDesc = document.getElementById("btnDesc");
@@ -175,6 +178,27 @@
       document.body.className = "mode-asc";
       addHistoryLog("🔄 モード切替: 【手前から奥】に設定しました", "wait");
     }
+  }
+
+  // ★「次の行へ進む」を手動で実行する関数
+  function moveToNextRowManual() {
+    lastScannedData = ""; // 連投ロック解除
+    triggerVibrate("success"); // ブッと確認振動
+    addHistoryLog("⏭️ スキップ: 次の位置へ進みます", "wait");
+    
+    // スプシ側へ空文字データをダミー送信して行を進めるための処理
+    const d = new Date();
+    const clientTimeStr = d.getFullYear() + "/" + String(d.getMonth() + 1).padStart(2, '0') + "/" + String(d.getDate()).padStart(2, '0') + " " +
+                          String(d.getHours()).padStart(2, '0') + ":" + String(d.getMinutes()).padStart(2, '0') + ":" + String(d.getSeconds()).padStart(2, '0') + "." +
+                          String(d.getMilliseconds()).padStart(3, '0');
+    
+    let userMemo = memoInput.value.trim();
+    if (userMemo !== "") {
+      userMemo = userMemo + "@" + currentDirection.toUpperCase();
+    }
+    
+    // QRコードの値を空白にしてキューに入れる
+    sendQueue.push({ qrValue: "（空白スキップ）", col: currentStartColumn, clientTime: clientTimeStr, memo: userMemo, worker: workerName });
   }
 
   function changeWorkerManually(type) {
@@ -224,6 +248,7 @@
       await video.play();
       document.getElementById("cameraBtn").style.display = "none";
       cameraWrapper.style.display = "block";
+      nextRowBtn.style.display = "block"; // カメラ起動時に一緒に表示
       requestAnimationFrame(autoScanLoop);
     } catch (err) {
       alert("カメラの使用を許可してください。");
@@ -246,15 +271,13 @@
           logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "⏳"; logIcon.className = "icon-box"; 
           logText.style.color = "#d35400"; logText.innerHTML = "同じQRコードを検出（弾きました）<br><small style='color:#7f8c8d;'>連投防止ロック中</small>";
           
-          if (!isLockVibrating) {
-            isLockVibrating = true;
+          if (now > preventErrorVibeUntil) {
             triggerVibrate("dup-error"); 
-            setTimeout(() => { isLockVibrating = false; }, 1500); 
+            preventErrorVibeUntil = now + 2500; 
           }
         } else {
           lastScannedData = code.data; lastScannedTime = now;
-          isLockVibrating = false; 
-          
+          preventErrorVibeUntil = now + 2500; 
           triggerVibrate("success"); 
           
           const d = new Date();
@@ -267,7 +290,6 @@
           logText.style.color = "#28a745"; logText.innerHTML = "スキャン完了！送信待ちポケットへ保存";
           setTimeout(() => { guideOverlay.classList.remove("success"); }, 400);
 
-          // ★【重要】位置コードの後ろに「歩行モード（@ASC または @DESC）」をこっそり合体させて送る
           let userMemo = memoInput.value.trim();
           if (userMemo !== "") {
             userMemo = userMemo + "@" + currentDirection.toUpperCase();
@@ -291,36 +313,4 @@
     }
     if (sendQueue.length > 0) {
       logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📥"; logIcon.className = "icon-box";
-      logText.style.color = "#1a73e8"; logText.innerHTML = "送信待ちデータが " + sendQueue.length + " 件あります<br><small style='color:#7f8c8d;'>まもなく自動送信されます</small>";
-      return;
-    }
-    logContainer.style.background = "#ffffff"; logIcon.innerHTML = "🔍"; logIcon.className = "icon-box icon-zoom";
-    logText.style.color = "#d35400"; logText.innerHTML = "枠内にQRコードを映してください<br><small style='color:#7f8c8d;'>現在の方向: " + (currentDirection==="desc"?"⬇️奥から手前":"⬆️手前から奥") + "</small>";
-  }
-
-  function processQueueBulk() {
-    if (isSending || sendQueue.length === 0) return;
-    isSending = true;
-
-    const bulkData = [...sendQueue];
-    const sendCount = bulkData.length;
-
-    fetch(GAS_URL, {
-      method: "POST",
-      body: JSON.stringify({ dataList: bulkData })
-    })
-    .then((response) => response.json())
-    .then((res) => {
-      sendQueue.splice(0, sendCount);
-      addHistoryLog("✓ 送信完了: " + sendCount + " 件のデータをスプシへ同期しました", "ok");
-    })
-    .catch((err) => { 
-      addHistoryLog("⚠️ 通信エラー：次回のタイマーで再試行します", "ng"); 
-    })
-    .finally(() => { 
-      isSending = false; 
-    });
-  }
-</script>
-</body>
-</html>
+      logText.style.color = "#1a7
