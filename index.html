@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>【完全版】QR在庫管理</title>
+  <title>QR在庫管理 - Ver 1.61</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; transition: background 0.3s; }
@@ -11,10 +11,14 @@
     body.mode-asc { background: #e8f5e9; }  
 
     .container { max-width: 500px; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
+    
+    .lang-area { display: flex; gap: 8px; margin-bottom: 8px; }
+    .lang-btn { flex: 1; padding: 10px; font-size: 1.1rem; font-weight: bold; border: 2px solid #ccc; border-radius: 6px; cursor: pointer; background: #f5f5f5; -webkit-appearance: none; }
+    .lang-btn.active { background: #37474f; color: white; border-color: #212121; }
+
     .top-info { background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #cfd8dc; font-weight: bold; font-size: 1.05rem; margin-bottom: 5px; color: #37474f; display: flex; justify-content: space-between; align-items: center; }
     .worker-badge { background: #37474f; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.9rem; }
     
-    /* 🚶‍♂️ 進行方向切り替えボタン（矢印特大版） */
     .direction-area { margin-bottom: 8px; display: flex; gap: 8px; }
     .dir-btn { flex: 1; padding: 8px 5px; font-size: 1.1rem; font-weight: bold; border: 3px solid #ccc; border-radius: 8px; cursor: pointer; background: #f5f5f5; color: #757575; transition: all 0.2s; -webkit-appearance: none; line-height: 1.2; }
     .dir-btn .big-arrow { font-size: 2rem; display: block; margin-bottom: 2px; }
@@ -56,14 +60,19 @@
 <body>
 
 <div class="container">
+  <div class="lang-area">
+    <button id="langJaBtn" class="lang-btn active" onclick="changeLanguage('ja')">🇯🇵 日本語</button>
+    <button id="langViBtn" class="lang-btn" onclick="changeLanguage('vi')">🇻🇳 Tiếng Việt</button>
+  </div>
+
   <div class="top-info">
     <span id="status">👤 作業者: 判定中...</span>
     <span id="sheet-info" class="worker-badge">端末1 シート</span>
   </div>
 
   <div class="direction-area">
-    <button id="btnDesc" class="dir-btn" onclick="setDirection('desc')"><span class="big-arrow">⬇️</span>奥から手前へ</button>
-    <button id="btnAsc" class="dir-btn" onclick="setDirection('asc')"><span class="big-arrow">⬆️</span>手前から奥へ</button>
+    <button id="btnDesc" class="dir-btn" onclick="setDirection('desc')"><span class="big-arrow">⬇️</span><span id="text-desc-label">奥から手前へ</span></button>
+    <button id="btnAsc" class="dir-btn" onclick="setDirection('asc')"><span class="big-arrow">⬆️</span><span id="text-asc-label">手前から奥へ</span></button>
   </div>
 
   <div id="manual-nav">
@@ -74,7 +83,7 @@
   </div>
 
   <div class="input-area">
-    <label for="memoInput">📍 位置コード:</label>
+    <label id="lbl-memo" for="memoInput">📍 位置コード:</label>
     <input type="text" id="memoInput" placeholder="例: A-1、B-10 など">
   </div>
   
@@ -93,9 +102,9 @@
   <button id="nextRowBtn" onclick="moveToNextRowManual()" class="btn">⏭️ 空白のまま次の位置へ進む</button>
   
   <div class="history-container">
-    <div class="history-title">⏱ 履歴（進行方向連動モード）</div>
+    <div id="lbl-history-title" class="history-title">⏱ 履歴（5秒空きリセット版）</div>
     <ul id="historyList">
-      <li style="color:#bdc3c7;">履歴はここに表示されます</li>
+      <li id="lbl-history-empty" style="color:#bdc3c7;">履歴はここに表示されます</li>
     </ul>
   </div>
   
@@ -103,7 +112,8 @@
 </div>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.52 (UI改良・完全復旧版)";
+  // タイマーリセット機能を搭載したため Ver 1.61 へアップデート
+  const VERSION_TEXT = "バージョン: Ver 1.61 (5秒空きカウントリセット機能搭載版)";
   
   // ★ここにGASのウェブアプリURLを貼り付けてください
   const GAS_URL = "https://script.google.com/macros/s/AKfycbxs5f8Q0ASNrwQfrYJHclpkl8R8R2cx6Xh0plpXM2qogKMiBhUSSTSk_jWezAGq_DBj/exec";
@@ -125,6 +135,7 @@
   const nextRowBtn = document.getElementById("nextRowBtn");
   
   let workerParam = new URLSearchParams(window.location.search).get('worker');
+  let langParam = new URLSearchParams(window.location.search).get('lang'); 
   let currentBoxNumber = 1;
   let currentStartColumn = 1; 
   let workerName = "作業員A";
@@ -133,16 +144,83 @@
   let isSending = false;    
   let lastScannedData = "";
   let lastScannedTime = 0;
-  let preventErrorVibeUntil = 0; 
   let currentDirection = "desc"; 
 
-  // ★起動時に作業者選択とバージョンを画面に反映する命令
+  let scanCount = 0;
+  let currentLang = "ja";
+
+  const i18n = {
+    ja: {
+      worker: "👤 作業者: ",
+      badge: "端末",
+      desc_btn: "奥から手前へ",
+      asc_btn: "手前から奥へ",
+      loc_lbl: "📍 位置コード:",
+      placeholder: "例: A-1、B-10 など",
+      init_cam: "最初にカメラを起動してください",
+      start_cam_btn: "📷 カメラを起動する",
+      next_row_btn: "⏭️ 空白のまま次の位置へ進む",
+      history_title: "⏱ 履歴（5秒空きリセット版）",
+      history_empty: "履歴はここに表示されます",
+      scan_ok: "スキャン完了！送信待ちポケットへ保存",
+      dup_err: "同じQRコードを検出（弾きました）<br><small style='color:#7f8c8d;'>連投防止ロック中</small>",
+      cam_guide: "枠内にQRコードを映してください<br><small style='color:#7f8c8d;'>現在の方向: ",
+      cam_sending: "GASへまとめて一括送信中...",
+      cam_waiting: "送信待ちデータが {count} 件あります<br><small style='color:#7f8c8d;'>まもなく自動送信されます</small>",
+      log_mode_desc: "🔄 モード切替: 【奥から手前】に設定しました",
+      log_mode_asc: "🔄 モード切替: 【手前から奥】に設定しました",
+      log_worker_change: "➔ テスト用切り替え: {name} に変更しました",
+      log_skip: "⏭️ スキップ: 次の位置へ進みます",
+      log_hold: "📥 保持: ",
+      log_sync_ok: "✓ 送信完了: {count} 件のデータをスプシへ同期しました",
+      log_sync_err: "⚠️ 通信エラー：次回のタイマーで再試行します",
+      arrow_desc: "⬇️奥から手前",
+      arrow_asc: "⬆️手前から奥",
+      workerA: "作業員A", workerB: "作業員B", workerC: "作業員C"
+    },
+    vi: {
+      worker: "👤 Người làm: ",
+      badge: "Thiết bị ",
+      desc_btn: "Từ Trong ra Ngoài",
+      asc_btn: "Từ Ngoài vào Trong",
+      loc_lbl: "📍 Mã vị trí:",
+      placeholder: "Ví dụ: A-1, B-10...",
+      init_cam: "Vui lòng bật máy ảnh trước",
+      start_cam_btn: "📷 Bật máy ảnh",
+      next_row_btn: "⏭️ Bỏ qua vị trí này (Để trống)",
+      history_title: "⏱ Lịch sử quét (Tự động đặt lại sau 5 giây)",
+      history_empty: "Lịch sử quét sẽ hiển thị ở đây",
+      scan_ok: "Quét thành công! Đang lưu vào bộ nhớ tạm",
+      dup_err: "Phát hiện mã QR trùng lặp (Đã bỏ qua)<br><small style='color:#7f8c8d;'>Khóa chống quét liên tục</small>",
+      cam_guide: "Vui lòng đưa mã QR vào khung<br><small style='color:#7f8c8d;'>Hướng hiện tại: ",
+      cam_sending: "Đang đồng bộ dữ liệu lên hệ thống...",
+      cam_waiting: "Có {count} dữ liệu đang chờ gửi<br><small style='color:#7f8c8d;'>Sẽ tự động gửi sau vài giây</small>",
+      log_mode_desc: "🔄 Chuyển chế độ: 【Từ Trong ra Ngoài】",
+      log_mode_asc: "🔄 Chuyển chế độ: 【Từ Ngoài vào Trong】",
+      log_worker_change: "➔ Chuyển đổi thử nghiệm: {name}",
+      log_skip: "⏭️ Bỏ qua: Đi đến vị trí tiếp theo",
+      log_hold: "📥 Đang giữ: ",
+      log_sync_ok: "✓ Đã gửi thành công: Đã đồng bộ {count} dữ liệu",
+      log_sync_err: "⚠️ Lỗi kết nối: Sẽ thử lại sau",
+      arrow_desc: "⬇️Trong ra Ngoài",
+      arrow_asc: "⬆️Ngoài vào Trong",
+      workerA: "Người làm A", workerB: "Người làm B", workerC: "Người làm C"
+    }
+  };
+
   initWorkerSettings();
   setDirection("desc"); 
-  document.getElementById("version").innerText = VERSION_TEXT; // バージョン表示を表示
+  document.getElementById("version").innerText = VERSION_TEXT;
   setInterval(processQueueBulk, 3000);
 
   function initWorkerSettings() {
+    if (langParam && langParam.toLowerCase() === "vi") {
+      currentLang = "vi";
+    } else {
+      currentLang = "ja";
+    }
+    updateScreenLanguage();
+
     if (workerParam) {
       workerParam = workerParam.toUpperCase();
       manualNav.style.display = "none"; 
@@ -152,15 +230,46 @@
     }
 
     if (workerParam === "B") {
-      currentBoxNumber = 2; currentStartColumn = 6; workerName = "作業員B";
+      currentBoxNumber = 2; currentStartColumn = 6; workerName = i18n[currentLang].workerB;
     } else if (workerParam === "C") {
-      currentBoxNumber = 3; currentStartColumn = 11; workerName = "作業員C";
+      currentBoxNumber = 3; currentStartColumn = 11; workerName = i18n[currentLang].workerC;
     } else {
-      currentBoxNumber = 1; currentStartColumn = 1; workerName = "作業員A";
+      currentBoxNumber = 1; currentStartColumn = 1; workerName = i18n[currentLang].workerA;
     }
     
-    statusDiv.innerHTML = "👤 作業者: " + workerName;
-    sheetInfoSpan.innerHTML = "端末" + currentBoxNumber + " シート";
+    statusDiv.innerHTML = i18n[currentLang].worker + workerName;
+    sheetInfoSpan.innerHTML = i18n[currentLang].badge + currentBoxNumber + (currentLang === "ja" ? " シート" : "");
+  }
+
+  function changeLanguage(lang) {
+    currentLang = lang;
+    document.getElementById("langJaBtn").className = (lang === 'ja') ? "lang-btn active" : "lang-btn";
+    document.getElementById("langViBtn").className = (lang === 'vi') ? "lang-btn active" : "lang-btn";
+    
+    if (workerParam === "B") workerName = i18n[currentLang].workerB;
+    else if (workerParam === "C") workerName = i18n[currentLang].workerC;
+    else workerName = i18n[currentLang].workerA;
+
+    updateScreenLanguage();
+    statusDiv.innerHTML = i18n[currentLang].worker + workerName;
+    sheetInfoSpan.innerHTML = i18n[currentLang].badge + currentBoxNumber + (currentLang === "ja" ? " シート" : "");
+  }
+
+  function updateScreenLanguage() {
+    const t = i18n[currentLang];
+    document.getElementById("text-desc-label").innerText = t.desc_btn;
+    document.getElementById("text-asc-label").innerText = t.asc_btn;
+    document.getElementById("lbl-memo").innerText = t.loc_lbl;
+    document.getElementById("memoInput").placeholder = t.placeholder;
+    document.getElementById("cameraBtn").innerText = t.start_cam_btn;
+    document.getElementById("nextRowBtn").innerText = t.next_row_btn;
+    document.getElementById("lbl-history-title").innerText = t.history_title;
+    if(document.getElementById("lbl-history-empty")) {
+      document.getElementById("lbl-history-empty").innerText = t.history_empty;
+    }
+    if(video.srcObject == null) {
+      logText.innerText = t.init_cam;
+    }
   }
 
   function setDirection(dir) {
@@ -172,19 +281,39 @@
       btnDesc.className = "dir-btn active-desc";
       btnAsc.className = "dir-btn";
       document.body.className = "mode-desc";
-      addHistoryLog("🔄 モード切替: 【奥から手前】に設定しました", "wait");
+      addHistoryLog(i18n[currentLang].log_mode_desc, "wait");
     } else {
       btnDesc.className = "dir-btn";
       btnAsc.className = "dir-btn active-asc";
       document.body.className = "mode-asc";
-      addHistoryLog("🔄 モード切替: 【手前から奥】に設定しました", "wait");
+      addHistoryLog(i18n[currentLang].log_mode_asc, "wait");
+    }
+  }
+
+  function speakCount(number) {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); 
+      const utterance = new SpeechSynthesisUtterance(number.toString());
+      if (currentLang === "vi") {
+        utterance.lang = "vi-VN"; 
+      } else {
+        utterance.lang = "ja-JP"; 
+      }
+      window.speechSynthesis.speak(utterance);
     }
   }
 
   function moveToNextRowManual() {
+    // スキップボタンを押した際も、作業時間の間隔チェックを行う
+    const now = Date.now();
+    if (lastScannedTime > 0 && (now - lastScannedTime) >= 5000) {
+      scanCount = 0; // 5秒以上空いていたらリセット
+    }
+    lastScannedTime = now; // 基準時刻を更新
+
     lastScannedData = ""; 
-    triggerVibrate("success"); 
-    addHistoryLog("⏭️ スキップ: 次の位置へ進みます", "wait");
+    triggerVibrate(); 
+    addHistoryLog(i18n[currentLang].log_skip, "wait");
     
     const d = new Date();
     const clientTimeStr = d.getFullYear() + "/" + String(d.getMonth() + 1).padStart(2, '0') + "/" + String(d.getDate()).padStart(2, '0') + " " +
@@ -203,7 +332,7 @@
     workerParam = type;
     initWorkerSettings();
     lastScannedData = ""; 
-    addHistoryLog("➔ テスト用切り替え: " + workerName + "に変更しました", "wait");
+    addHistoryLog(i18n[currentLang].log_worker_change.replace("{name}", workerName), "wait");
   }
 
   function getTimeStr() {
@@ -212,7 +341,7 @@
   }
 
   function addHistoryLog(message, type) {
-    if (historyList.innerText === "履歴はここに表示されます") historyList.innerHTML = "";
+    if (historyList.innerText === i18n[currentLang].history_empty) historyList.innerHTML = "";
     const li = document.createElement("li");
     li.innerHTML = getTimeStr() + message;
     if (type === "ok") li.className = "history-ok";
@@ -221,21 +350,17 @@
     historyList.insertBefore(li, historyList.firstChild);
   }
 
-  function triggerVibrate(mode) {
+  function triggerVibrate() {
     if (navigator.vibrate) {
       navigator.vibrate(0); 
       setTimeout(() => {
-        if (mode === "success") {
-          navigator.vibrate([120]); 
-        } else if (mode === "dup-error") {
-          navigator.vibrate([80, 60, 80]); 
-        }
+        navigator.vibrate([120]); 
       }, 10);
     }
   }
 
   async function startCamera() {
-    logText.innerHTML = "カメラを起動しています...";
+    logText.innerHTML = "Camera starting...";
     try {
       const constraints = { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -247,7 +372,7 @@
       nextRowBtn.style.display = "block"; 
       requestAnimationFrame(autoScanLoop);
     } catch (err) {
-      alert("カメラの使用を許可してください。");
+      alert("Please allow camera access.");
     }
   }
 
@@ -265,16 +390,24 @@
         const now = Date.now();
         if (code.data === lastScannedData && (now - lastScannedTime) < 3000) {
           logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "⏳"; logIcon.className = "icon-box"; 
-          logText.style.color = "#d35400"; logText.innerHTML = "同じQRコードを検出（弾きました）<br><small style='color:#7f8c8d;'>連投防止ロック中</small>";
+          logText.innerHTML = i18n[currentLang].dup_err;
           
-          if (now > preventErrorVibeUntil) {
-            triggerVibrate("dup-error"); 
-            preventErrorVibeUntil = now + 2500; 
+          if (now - lastScannedTime > 2500) {
+            triggerVibrate();
           }
         } else {
-          lastScannedData = code.data; lastScannedTime = now;
-          preventErrorVibeUntil = now + 2500; 
-          triggerVibrate("success"); 
+          // ★【今回のコア修正】最後に読んだ時間から「5秒以上」空いていたらリセット
+          if (lastScannedTime > 0 && (now - lastScannedTime) >= 5000) {
+            scanCount = 0; // カウンターを1からにするため、一度0にリセット
+          }
+          
+          lastScannedData = code.data; 
+          lastScannedTime = now; // 最新のスキャン時間を上書き
+          
+          triggerVibrate(); 
+          
+          scanCount++;           // 1加算されるので、リセット後は必ず「1」になる
+          speakCount(scanCount); // 音声で「1、2、3...」または「Một, Hai, Ba...」と発声
           
           const d = new Date();
           const clientTimeStr = d.getFullYear() + "/" + String(d.getMonth() + 1).padStart(2, '0') + "/" + String(d.getDate()).padStart(2, '0') + " " +
@@ -283,7 +416,7 @@
 
           guideOverlay.classList.add("success");
           logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📷"; logIcon.className = "icon-box icon-bounce";
-          logText.style.color = "#28a745"; logText.innerHTML = "スキャン完了！送信待ちポケットへ保存";
+          logText.style.color = "#28a745"; logText.innerHTML = i18n[currentLang].scan_ok + " (No." + scanCount + ")";
           setTimeout(() => { guideOverlay.classList.remove("success"); }, 400);
 
           let userMemo = memoInput.value.trim();
@@ -292,7 +425,9 @@
           }
 
           sendQueue.push({ qrValue: code.data, col: currentStartColumn, clientTime: clientTimeStr, memo: userMemo, worker: workerName });
-          addHistoryLog("📥 保持: " + code.data.substring(0,12) + "... (" + (currentDirection==="desc"?"奥":"手前") + ")", "wait");
+          
+          const displayDir = currentDirection === "desc" ? (currentLang === 'ja' ? "奥" : "Trong") : (currentLang === 'ja' ? "手前" : "Ngoài");
+          addHistoryLog(i18n[currentLang].log_hold + code.data.substring(0,12) + "... (" + displayDir + ") [No." + scanCount + "]", "wait");
         }
       } else {
         diagnoseImageError(imageData);
@@ -304,16 +439,18 @@
   function diagnoseImageError(imageData) {
     if (isSending) {
       logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "🚀"; logIcon.className = "icon-box icon-bounce";
-      logText.style.color = "#e67e22"; logText.innerHTML = "GASへまとめて一括送信中...";
+      logText.style.color = "#e67e22"; logText.innerHTML = i18n[currentLang].cam_sending;
       return;
     }
     if (sendQueue.length > 0) {
       logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📥"; logIcon.className = "icon-box";
-      logText.style.color = "#1a73e8"; logText.innerHTML = "送信待ちデータが " + sendQueue.length + " 件あります<br><small style='color:#7f8c8d;'>まもなく自動送信されます</small>";
+      logText.style.color = "#1a73e8"; logText.innerHTML = i18n[currentLang].cam_waiting.replace("{count}", sendQueue.length);
       return;
     }
+    
+    const arrowText = currentDirection === "desc" ? i18n[currentLang].arrow_desc : i18n[currentLang].arrow_asc;
     logContainer.style.background = "#ffffff"; logIcon.innerHTML = "🔍"; logIcon.className = "icon-box icon-zoom";
-    logText.style.color = "#d35400"; logText.innerHTML = "枠内にQRコードを映してください<br><small style='color:#7f8c8d;'>現在の方向: " + (currentDirection==="desc"?"⬇️奥から手前":"⬆️手前から奥") + "</small>";
+    logText.style.color = "#d35400"; logText.innerHTML = i18n[currentLang].cam_guide + arrowText + "</small>";
   }
 
   function processQueueBulk() {
@@ -330,10 +467,10 @@
     .then((response) => response.json())
     .then((res) => {
       sendQueue.splice(0, sendCount);
-      addHistoryLog("✓ 送信完了: " + sendCount + " 件のデータをスプシへ同期しました", "ok");
+      addHistoryLog(i18n[currentLang].log_sync_ok.replace("{count}", sendCount), "ok");
     })
     .catch((err) => { 
-      addHistoryLog("⚠️ 通信エラー：次回のタイマーで再試行します", "ng"); 
+      addHistoryLog(i18n[currentLang].log_sync_err, "ng"); 
     })
     .finally(() => { 
       isSending = false; 
