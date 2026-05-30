@@ -3,7 +3,355 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>QR在庫管理 - Ver <!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>QR在庫管理 - Ver 1.62</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; transition: background 0.3s; }
+    body.mode-desc { background: #e3f2fd; } 
+    body.mode-asc { background: #e8f5e9; }  
+    .container { max-width: 500px; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
+    .lang-area { display: flex; gap: 8px; margin-bottom: 8px; }
+    .lang-btn { flex: 1; padding: 10px; font-size: 1.1rem; font-weight: bold; border: 2px solid #ccc; border-radius: 6px; cursor: pointer; background: #f5f5f5; -webkit-appearance: none; }
+    .lang-btn.active { background: #37474f; color: white; border-color: #212121; }
+    .top-info { background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #cfd8dc; font-weight: bold; font-size: 1.05rem; margin-bottom: 5px; color: #37474f; display: flex; justify-content: space-between; align-items: center; }
+    .worker-badge { background: #37474f; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.9rem; }
+    .direction-area { margin-bottom: 8px; display: flex; gap: 8px; }
+    .dir-btn { flex: 1; padding: 8px 5px; font-size: 1.1rem; font-weight: bold; border: 3px solid #ccc; border-radius: 8px; cursor: pointer; background: #f5f5f5; color: #757575; transition: all 0.2s; -webkit-appearance: none; line-height: 1.2; }
+    .dir-btn .big-arrow { font-size: 2rem; display: block; margin-bottom: 2px; }
+    .dir-btn.active-desc { background: #1a73e8; color: white; border-color: #0d47a1; box-shadow: 0 4px 10px rgba(26,115,232,0.4); }
+    .dir-btn.active-asc { background: #28a745; color: white; border-color: #1e7e34; box-shadow: 0 4px 10px rgba(40,167,69,0.4); }
+    #manual-nav { display: none; background: #fff3cd; padding: 6px; border-radius: 6px; border: 1px solid #ffeeba; margin-bottom: 5px; justify-content: space-between; align-items: center; }
+    .input-area { background: #f5f5f5; padding: 8px; border-radius: 6px; border: 1px solid #cfd8dc; margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+    .input-area label { font-size: 0.85rem; font-weight: bold; color: #37474f; white-space: nowrap; }
+    .input-area input { flex: 1; padding: 8px; font-size: 1rem; border: 1px solid #b0bec5; border-radius: 4px; box-sizing: border-box; }
+    #log-container { margin: 5px 0; min-height: 65px; background: #f5f5f5; padding: 8px; border-radius: 6px; border: 1px solid #cfd8dc; display: flex; align-items: center; justify-content: center; gap: 15px; }
+    #log-text { font-size: 1.05rem; font-weight: bold; color: #37474f; text-align: left; line-height: 1.3; }
+    .icon-box { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 2rem; position: relative; }
+    @keyframes zoomInOut { 0% { transform: scale(0.9); } 50% { transform: scale(1.1); } 100% { transform: scale(0.9); } }
+    .icon-zoom { animation: zoomInOut 1.2s infinite ease-in-out; }
+    @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+    .icon-bounce { animation: bounce 0.4s infinite ease-in-out; }
+    .camera-wrapper { position: relative; width: 100%; max-width: 320px; margin: 5px auto; display: none; border-radius: 8px; border: 3px solid #2c3e50; background: #000; box-sizing: border-box; aspect-ratio: 4 / 3; overflow: hidden; }
+    #canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .qr-guide-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 200px; border: 5px dashed #e67e22; border-radius: 10px; opacity: 0.9; pointer-events: none; box-sizing: border-box; transition: border-color 0.2s, background-color 0.2s; }
+    .qr-guide-overlay.success { border-color: #2ecc71; background: rgba(46, 204, 113, 0.15); }
+    .btn { color: white; padding: 14px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 8px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
+    #cameraBtn { background: #37474f; }
+    #nextRowBtn { background: #28a745; display: none; margin-bottom: 5px; } 
+    .history-container { margin-top: 12px; text-align: left; background: #2c3e50; color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; }
+    .history-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid #34495e; padding-bottom: 4px; color: #bdc3c7; }
+    #historyList { max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 0; margin: 0; list-style: none; }
+    #historyList li { padding: 5px 0; border-bottom: 1px solid #34495e; line-height: 1.3; }
+    .history-ok { color: #2ecc71; }
+    .history-ng { color: #e74c3c; }
+    .history-wait { color: #f1c40f; }
+    .version-info { margin-top: 10px; font-size: 0.7rem; color: #7f8c8d; text-align: center; }
+    .nav-link { display: block; margin-top: 15px; color: #1a73e8; text-decoration: none; font-size: 0.95rem; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="lang-area">
+    <button id="langJaBtn" class="lang-btn active" onclick="changeLanguage('ja')">🇯🇵 日本語</button>
+    <button id="langViBtn" class="lang-btn" onclick="changeLanguage('vi')">🇻🇳 Tiếng Việt</button>
+  </div>
+
+  <div class="top-info">
+    <span id="status">👤 作業者: 判定中...</span>
+    <span id="sheet-info" class="worker-badge">端末1 シート</span>
+  </div>
+
+  <div class="direction-area">
+    <button id="btnDesc" class="dir-btn" onclick="setDirection('desc')"><span class="big-arrow">⬇️</span><span id="text-desc-label">奥から手前へ</span></button>
+    <button id="btnAsc" class="dir-btn" onclick="setDirection('asc')"><span class="big-arrow">⬆️</span><span id="text-asc-label">手前から奥へ</span></button>
+  </div>
+
+  <div id="manual-nav">
+    <span style="font-size:0.8rem; color:#666;">テスト用切り替え:</span>
+    <button onclick="changeWorkerManually('A')" style="background:#1a73e8; color:white; border:none; padding:4px 8px; border-radius:3px;">員A</button>
+    <button onclick="changeWorkerManually('B')" style="background:#28a745; color:white; border:none; padding:4px 8px; border-radius:3px;">員B</button>
+    <button onclick="changeWorkerManually('C')" style="background:#e67e22; color:white; border:none; padding:4px 8px; border-radius:3px;">員C</button>
+  </div>
+
+  <div class="input-area">
+    <label id="lbl-memo" for="memoInput">📍 位置コード:</label>
+    <input type="text" id="memoInput" placeholder="例: A-1、B-10 など">
+  </div>
+  
+  <div id="log-container">
+    <div id="log-icon" class="icon-box">📷</div>
+    <div id="log-text">最初にカメラを起動してください</div>
+  </div>
+
+  <button id="cameraBtn" onclick="startCamera()" class="btn">📷 カメラを起動する</button>
+
+  <div class="camera-wrapper" id="cameraWrapper">
+    <canvas id="canvas"></canvas>
+    <div id="guideOverlay" class="qr-guide-overlay"></div>
+  </div>
+  
+  <button id="nextRowBtn" onclick="moveToNextRowManual()" class="btn">⏭️ 空白のまま次の位置へ進む</button>
+  
+  <div class="history-container">
+    <div id="lbl-history-title" class="history-title">⏱ 履歴</div>
+    <ul id="historyList">
+      <li id="lbl-history-empty" style="color:#bdc3c7;">履歴はここに表示されます</li>
+    </ul>
+  </div>
+
+  <a href="search.html" class="nav-link">🗺️ 倉庫マップ図面・在庫検索を開く</a>
+  
+  <div id="version" class="version-info"></div>
+</div>
+
+<script>
+  const VERSION_TEXT = "バージョン: Ver 1.62 (スマホ側自動分割送信版)";
+  
+  // ★ここにGASのウェブアプリURLを貼り付けてください
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbwn8KmXLdJFWUG3zRi_HJrGvlcuKIut0od8Dzv-AO5vOjM2puq9IdpBbI_k_IXlyAkD/exec";
+
+  const video = document.createElement("video");
+  const canvasElement = document.getElementById("canvas");
+  const canvas = canvasElement.getContext("2d", { willReadFrequently: true });
+  
+  const guideOverlay = document.getElementById("guideOverlay");
+  const logContainer = document.getElementById("log-container");
+  const logIcon = document.getElementById("log-icon");
+  const logText = document.getElementById("log-text");
+  const statusDiv = document.getElementById("status");
+  const sheetInfoSpan = document.getElementById("sheet-info");
+  const cameraWrapper = document.getElementById("cameraWrapper");
+  const historyList = document.getElementById("historyList");
+  const memoInput = document.getElementById("memoInput");
+  const manualNav = document.getElementById("manual-nav");
+  const nextRowBtn = document.getElementById("nextRowBtn");
+  
+  let workerParam = new URLSearchParams(window.location.search).get('worker');
+  let langParam = new URLSearchParams(window.location.search).get('lang'); 
+  let currentBoxNumber = 1;
+  let currentStartColumn = 1; 
+  let workerName = "作業員A";
+
+  let sendQueue = [];       
+  let isSending = false;    
+  let lastScannedData = "";
+  let lastScannedTime = 0;
+  let currentDirection = "desc"; 
+
+  let scanCount = 0;
+  let currentLang = "ja";
+
+  const i18n = {
+    ja: {
+      worker: "👤 作業者: ", badge: "端末", desc_btn: "奥から手前へ", asc_btn: "手前から奥へ", loc_lbl: "📍 位置コード:", placeholder: "例: A-1、B-10 など", init_cam: "最初にカメラを起動してください", start_cam_btn: "📷 カメラを起動する", next_row_btn: "⏭️ 空白のまま次の位置へ進む", history_title: "⏱ 履歴 (5秒リセット版)", history_empty: "履歴はここに表示されます", scan_ok: "スキャン完了！保存しました", dup_err: "同じQRコードを検出（弾きました）", cam_guide: "枠内にQRコードを映してください<br><small>現在の方向: ", cam_sending: "GASへまとめて一括送信中...", cam_waiting: "送信待ちデータが {count} 件あります", log_mode_desc: "🔄 モード切替: 【奥から手前】", log_mode_asc: "🔄 モード切替: 【手前から奥】", log_worker_change: "➔ テスト用切り替え: {name}", log_skip: "⏭️ スキップ: 次の位置へ進みます", log_hold: "📥 保持: ", log_sync_ok: "✓ 送信完了: {count} 件データを同期しました", log_sync_err: "⚠️ 通信エラー：再試行します", arrow_desc: "⬇️奥から手前", arrow_asc: "⬆️手前から奥", workerA: "作業員A", workerB: "作業員B", workerC: "作業員C"
+    },
+    vi: {
+      worker: "👤 Người làm: ", badge: "Thiết bị ", desc_btn: "Từ Trong ra Ngoài", asc_btn: "Từ Ngoài vào Trong", loc_lbl: "📍 Mã vị trí:", placeholder: "Ví dụ: A-1, B-10...", init_cam: "Vui lòng bật máy ảnh trước", start_cam_btn: "📷 Bật máy ảnh", next_row_btn: "⏭️ Bỏ qua vị trí này (Để trống)", history_title: "⏱ Lịch sử quét", history_empty: "Lịch sử quét sẽ hiển thị ở đây", scan_ok: "Quét thành công! Đang lưu", dup_err: "Phát hiện mã QR trùng lặp (Đã bỏ qua)", cam_guide: "Vui lòng đưa mã QR vào khung<br><small>Hướng hiện tại: ", cam_sending: "Đang đồng bộ dữ liệu...", cam_waiting: "Có {count} dữ liệu đang chờ gửi", log_mode_desc: "🔄 Chuyển chế độ: 【Từ Trong ra Ngoài】", log_mode_asc: "🔄 Chuyển chế độ: 【Từ Ngoài vào Trong】", log_worker_change: "➔ Chuyển đổi thử nghiệm: {name}", log_skip: "⏭️ Bỏ qua: Đi đến vị trí tiếp theo", log_hold: "📥 Đang giữ: ", log_sync_ok: "✓ Đã gửi thành công: {count} dữ liệu", log_sync_err: "⚠️ Lỗi kết nối: Sẽ thử lại", arrow_desc: "⬇️Trong ra Ngoài", arrow_asc: "⬆️Ngoài vào Trong", workerA: "Người làm A", workerB: "Người làm B", workerC: "Người làm C"
+    }
+  };
+
+  initWorkerSettings();
+  setDirection("desc"); 
+  document.getElementById("version").innerText = VERSION_TEXT;
+  setInterval(processQueueBulk, 3000);
+
+  function initWorkerSettings() {
+    if (langParam && langParam.toLowerCase() === "vi") { currentLang = "vi"; } else { currentLang = "ja"; }
+    updateScreenLanguage();
+    if (workerParam) { workerParam = workerParam.toUpperCase(); manualNav.style.display = "none"; } else { workerParam = "A"; manualNav.style.display = "flex"; }
+    if (workerParam === "B") { currentBoxNumber = 2; currentStartColumn = 6; workerName = i18n[currentLang].workerB; } 
+    else if (workerParam === "C") { currentBoxNumber = 3; currentStartColumn = 11; workerName = i18n[currentLang].workerC; } 
+    else { currentBoxNumber = 1; currentStartColumn = 1; workerName = i18n[currentLang].workerA; }
+    statusDiv.innerHTML = i18n[currentLang].worker + workerName;
+    sheetInfoSpan.innerHTML = i18n[currentLang].badge + currentBoxNumber + (currentLang === "ja" ? " シート" : "");
+  }
+
+  function changeLanguage(lang) {
+    currentLang = lang;
+    document.getElementById("langJaBtn").className = (lang === 'ja') ? "lang-btn active" : "lang-btn";
+    document.getElementById("langViBtn").className = (lang === 'vi') ? "lang-btn active" : "lang-btn";
+    if (workerParam === "B") workerName = i18n[currentLang].workerB;
+    else if (workerParam === "C") workerName = i18n[currentLang].workerC;
+    else workerName = i18n[currentLang].workerA;
+    updateScreenLanguage();
+    statusDiv.innerHTML = i18n[currentLang].worker + workerName;
+    sheetInfoSpan.innerHTML = i18n[currentLang].badge + currentBoxNumber + (currentLang === "ja" ? " シート" : "");
+  }
+
+  function updateScreenLanguage() {
+    const t = i18n[currentLang];
+    document.getElementById("text-desc-label").innerText = t.desc_btn; document.getElementById("text-asc-label").innerText = t.asc_btn;
+    document.getElementById("lbl-memo").innerText = t.loc_lbl; document.getElementById("memoInput").placeholder = t.placeholder;
+    document.getElementById("cameraBtn").innerText = t.start_cam_btn; document.getElementById("nextRowBtn").innerText = t.next_row_btn;
+    document.getElementById("lbl-history-title").innerText = t.history_title;
+    if(document.getElementById("lbl-history-empty")) { document.getElementById("lbl-history-empty").innerText = t.history_empty; }
+    if(video.srcObject == null) { logText.innerText = t.init_cam; }
+  }
+
+  function setDirection(dir) {
+    currentDirection = dir;
+    if (dir === "desc") {
+      document.getElementById("btnDesc").className = "dir-btn active-desc"; document.getElementById("btnAsc").className = "dir-btn";
+      document.body.className = "mode-desc"; addHistoryLog(i18n[currentLang].log_mode_desc, "wait");
+    } else {
+      document.getElementById("btnDesc").className = "dir-btn"; document.getElementById("btnAsc").className = "dir-btn active-asc";
+      document.body.className = "mode-asc"; addHistoryLog(i18n[currentLang].log_mode_asc, "wait");
+    }
+  }
+
+  function speakCount(number) {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); 
+      const utterance = new SpeechSynthesisUtterance(number.toString());
+      utterance.lang = (currentLang === "vi") ? "vi-VN" : "ja-JP";
+      window.speechSynthesis.speak(utterance);
+    }
+  }
+
+  function parseQrContent(rawText) {
+    let modelCode = "";
+    let serialNumber = "";
+    const parts = rawText.replace(/[\s　]+/g, " ").trim().split(" ");
+    
+    if (parts.length >= 8) {
+      modelCode = parts[5]; 
+      serialNumber = parts[6].replace("機番", ""); 
+    } else {
+      modelCode = parts[0] || "";
+      serialNumber = rawText.substring(0, 10);
+    }
+    return { modelCode, serialNumber };
+  }
+
+  function moveToNextRowManual() {
+    const now = Date.now();
+    if (lastScannedTime > 0 && (now - lastScannedTime) >= 5000) { scanCount = 0; }
+    lastScannedTime = now; lastScannedData = ""; triggerVibrate(); 
+    addHistoryLog(i18n[currentLang].log_skip, "wait");
+    
+    const clientTimeStr = getFormattedDate();
+    let userMemo = memoInput.value.trim();
+    if (userMemo !== "") { userMemo = userMemo + "@" + currentDirection.toUpperCase(); }
+    
+    sendQueue.push({ qrValue: "（空白スキップ）", modelCode: "（空白）", serialNumber: "（空白）", col: currentStartColumn, clientTime: clientTimeStr, memo: userMemo });
+  }
+
+  function changeWorkerManually(type) {
+    workerParam = type; initWorkerSettings(); lastScannedData = ""; 
+    addHistoryLog(i18n[currentLang].log_worker_change.replace("{name}", workerName), "wait");
+  }
+
+  function getFormattedDate() {
+    const d = new Date();
+    return d.getFullYear() + "/" + String(d.getMonth() + 1).padStart(2, '0') + "/" + String(d.getDate()).padStart(2, '0') + " " +
+           String(d.getHours()).padStart(2, '0') + ":" + String(d.getMinutes()).padStart(2, '0') + ":" + String(d.getSeconds()).padStart(2, '0') + "." +
+           String(d.getMilliseconds()).padStart(3, '0');
+  }
+
+  function addHistoryLog(message, type) {
+    if (historyList.innerText === i18n[currentLang].history_empty) historyList.innerHTML = "";
+    const li = document.createElement("li");
+    const d = new Date();
+    li.innerHTML = "[" + String(d.getHours()).padStart(2, '0') + ":" + String(d.getMinutes()).padStart(2, '0') + ":" + String(d.getSeconds()).padStart(2, '0') + "] " + message;
+    if (type === "ok") li.className = "history-ok";
+    if (type === "ng") li.className = "history-ng";
+    if (type === "wait") li.className = "history-wait";
+    historyList.insertBefore(li, historyList.firstChild);
+  }
+
+  function triggerVibrate() {
+    if (navigator.vibrate) { navigator.vibrate(0); setTimeout(() => { navigator.vibrate([120]); }, 10); }
+  }
+
+  async function startCamera() {
+    logText.innerHTML = "Camera starting...";
+    try {
+      const constraints = { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream; video.setAttribute("playsinline", true); await video.play();
+      document.getElementById("cameraBtn").style.display = "none"; cameraWrapper.style.display = "block"; nextRowBtn.style.display = "block";
+      requestAnimationFrame(autoScanLoop);
+    } catch (err) { alert("Please allow camera access."); }
+  }
+
+  function autoScanLoop() {
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvasElement.width = video.videoWidth; canvasElement.height = video.videoHeight;
+      canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+      const cropSize = Math.min(video.videoWidth, video.videoHeight) * 0.6;
+      const cropX = (video.videoWidth - cropSize) / 2; const cropY = (video.videoHeight - cropSize) / 2;
+      const imageData = canvas.getImageData(cropX, cropY, cropSize, cropSize);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+
+      if (code && code.data.trim() !== "") {
+        const now = Date.now();
+        if (code.data === lastScannedData && (now - lastScannedTime) < 3000) {
+          logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "⏳"; logIcon.className = "icon-box"; 
+          logText.innerHTML = i18n[currentLang].dup_err;
+          if (now - lastScannedTime > 2500) { triggerVibrate(); }
+        } else {
+          if (lastScannedTime > 0 && (now - lastScannedTime) >= 5000) { scanCount = 0; }
+          lastScannedData = code.data; lastScannedTime = now;
+          triggerVibrate();
+          scanCount++;
+          speakCount(scanCount);
+          
+          const parsed = parseQrContent(code.data);
+          const clientTimeStr = getFormattedDate();
+
+          guideOverlay.classList.add("success");
+          logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📷"; logIcon.className = "icon-box icon-bounce";
+          logText.style.color = "#28a745"; logText.innerHTML = i18n[currentLang].scan_ok + " (No." + scanCount + ")";
+          setTimeout(() => { guideOverlay.classList.remove("success"); }, 400);
+
+          let userMemo = memoInput.value.trim();
+          if (userMemo !== "") { userMemo = userMemo + "@" + currentDirection.toUpperCase(); }
+
+          sendQueue.push({ 
+            qrValue: code.data, 
+            modelCode: parsed.modelCode,       
+            serialNumber: parsed.serialNumber, 
+            col: currentStartColumn, 
+            clientTime: clientTimeStr, 
+            memo: userMemo 
+          });
+          
+          const displayDir = currentDirection === "desc" ? (currentLang === 'ja' ? "奥" : "Trong") : (currentLang === 'ja' ? "手前" : "Ngoài");
+          addHistoryLog(i18n[currentLang].log_hold + parsed.modelCode + " / " + parsed.serialNumber + " (" + displayDir + ") [No." + scanCount + "]", "wait");
+        }
+      } else { diagnoseImageError(imageData); }
+    }
+    requestAnimationFrame(autoScanLoop);
+  }
+
+  function diagnoseImageError(imageData) {
+    if (isSending) { logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "🚀"; logIcon.className = "icon-box icon-bounce"; logText.style.color = "#e67e22"; logText.innerHTML = i18n[currentLang].cam_sending; return; }
+    if (sendQueue.length > 0) { logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📥"; logIcon.className = "icon-box"; logText.style.color = "#1a73e8"; logText.innerHTML = i18n[currentLang].cam_waiting.replace("{count}", sendQueue.length); return; }
+    const arrowText = currentDirection === "desc" ? i18n[currentLang].arrow_desc : i18n[currentLang].arrow_asc;
+    logContainer.style.background = "#ffffff"; logIcon.innerHTML = "🔍"; logIcon.className = "icon-box icon-zoom"; logText.style.color = "#d35400"; logText.innerHTML = i18n[currentLang].cam_guide + arrowText + "</small>";
+  }
+
+  function processQueueBulk() {
+    if (isSending || sendQueue.length === 0) return;
+    isSending = true;
+    const bulkData = [...sendQueue];
+    const sendCount = bulkData.length;
+
+    fetch(GAS_URL, { method: "POST", body: JSON.stringify({ dataList: bulkData }) })
+    .then((response) => response.json())
+    .then((res) => { sendQueue.splice(0, sendCount); addHistoryLog(i18n[currentLang].log_sync_ok.replace("{count}", sendCount), "ok"); })
+    .catch((err) => { addHistoryLog(i18n[currentLang].log_sync_err, "ng"); })
+    .finally(() => { isSending = false; });
+  }
+</script>
+</body>
+</html>1.62</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; transition: background 0.3s; }
