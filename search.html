@@ -92,11 +92,11 @@
       .then(data => {
         allStockData = data;
         document.getElementById("statusMsg").innerText = "✓ 最新の在庫データを同期しました。";
-        generateMapGrid(5);
+        generateMapGrid(0);
       })
       .catch(err => {
         document.getElementById("statusMsg").innerText = "⚠️ データ同期エラー。電波の良い場所で試してください";
-        generateMapGrid(5);
+        generateMapGrid(0);
       });
   };
 
