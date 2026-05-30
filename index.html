@@ -1,56 +1,65 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>QR在庫管理 - Ver 1.85</title>
+  <title>QR在庫管理 - Ver 1.90</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; transition: background 0.3s; }
-    body.mode-desc { background: #e3f2fd; } 
-    body.mode-asc { background: #e8f5e9; }  
+    body { font-family: sans-serif; text-align: center; margin: 0; padding: 5px; background: #f4f6f9; touch-action: manipulation; }
     .container { max-width: 500px; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
+    
+    /* 言語切り替え */
     .lang-area { display: flex; gap: 8px; margin-bottom: 8px; }
-    .lang-btn { flex: 1; padding: 10px; font-size: 1.1rem; font-weight: bold; border: 2px solid #ccc; border-radius: 6px; cursor: pointer; background: #f5f5f5; -webkit-appearance: none; }
+    .lang-btn { flex: 1; padding: 8px; font-size: 1rem; font-weight: bold; border: 2px solid #ccc; border-radius: 6px; cursor: pointer; background: #f5f5f5; -webkit-appearance: none; }
     .lang-btn.active { background: #37474f; color: white; border-color: #212121; }
-    .top-info { background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid #cfd8dc; font-weight: bold; font-size: 1.05rem; margin-bottom: 5px; color: #37474f; display: flex; justify-content: space-between; align-items: center; }
-    .worker-badge { background: #37474f; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.9rem; }
-    .direction-area { margin-bottom: 8px; display: flex; gap: 8px; }
-    .dir-btn { flex: 1; padding: 8px 5px; font-size: 1.1rem; font-weight: bold; border: 3px solid #ccc; border-radius: 8px; cursor: pointer; background: #f5f5f5; color: #757575; transition: all 0.2s; -webkit-appearance: none; line-height: 1.2; }
-    .dir-btn .big-arrow { font-size: 2rem; display: block; margin-bottom: 2px; }
-    .dir-btn.active-desc { background: #1a73e8; color: white; border-color: #0d47a1; box-shadow: 0 4px 10px rgba(26,115,232,0.4); }
-    .dir-btn.active-asc { background: #28a745; color: white; border-color: #1e7e34; box-shadow: 0 4px 10px rgba(40,167,69,0.4); }
-    #manual-nav { display: none; background: #fff3cd; padding: 6px; border-radius: 6px; border: 1px solid #ffeeba; margin-bottom: 5px; justify-content: space-between; align-items: center; }
-    .input-area { background: #f5f5f5; padding: 8px; border-radius: 6px; border: 1px solid #cfd8dc; margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
-    .input-area label { font-size: 0.85rem; font-weight: bold; color: #37474f; white-space: nowrap; }
-    .input-area input { flex: 1; padding: 8px; font-size: 1rem; border: 1px solid #b0bec5; border-radius: 4px; box-sizing: border-box; }
-    #log-container { margin: 5px 0; min-height: 65px; background: #f5f5f5; padding: 8px; border-radius: 6px; border: 1px solid #cfd8dc; display: flex; align-items: center; justify-content: center; gap: 15px; }
-    #log-text { font-size: 1.05rem; font-weight: bold; color: #37474f; text-align: left; line-height: 1.3; }
-    .icon-box { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 2rem; position: relative; }
-    @keyframes zoomInOut { 0% { transform: scale(0.9); } 50% { transform: scale(1.1); } 100% { transform: scale(0.9); } }
-    .icon-zoom { animation: zoomInOut 1.2s infinite ease-in-out; }
-    @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-    .icon-bounce { animation: bounce 0.4s infinite ease-in-out; }
     
-    /* 【一新したカメラ表示エリア】 canvasでの手動描画をやめ、videoタグを直接表示して超サクサクにします */
-    .camera-wrapper { position: relative; width: 100%; max-width: 320px; margin: 5px auto; display: none; border-radius: 8px; border: 3px solid #2c3e50; background: #000; box-sizing: border-box; aspect-ratio: 4 / 3; overflow: hidden; }
+    /* 現場ロケーション選択UI */
+    .location-box { background: #fff; border: 2px solid #cfd8dc; border-radius: 8px; padding: 8px; margin-bottom: 8px; text-align: left; box-sizing: border-box; }
+    .loc-title { font-size: 0.85rem; font-weight: bold; color: #546e7a; margin-bottom: 4px; display: flex; justify-content: space-between; }
+    .btn-grid { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+    .grid-btn { flex: 1; min-width: 40px; padding: 10px 4px; font-size: 0.95rem; font-weight: bold; border: 1px solid #b0bec5; border-radius: 6px; background: #ffffff; cursor: pointer; text-align: center; -webkit-appearance: none; }
+    .grid-btn.active { background: #1a73e8; color: white; border-color: #0d47a1; box-shadow: 0 2px 6px rgba(26,115,232,0.3); }
+    .grid-btn.active-lr { background: #28a745; color: white; border-color: #1e7e34; box-shadow: 0 2px 6px rgba(40,167,69,0.3); }
+    
+    /* 現在の位置表示・ステップボタン */
+    .current-loc-display { background: #eceff1; padding: 10px; border-radius: 6px; text-align: center; margin-bottom: 6px; border: 1px dashed #b0bec5; }
+    .current-loc-text { font-size: 1.15rem; font-weight: bold; color: #1a73e8; }
+    .step-control-row { display: flex; gap: 6px; }
+    .step-btn { flex: 1; padding: 14px 4px; font-size: 1.05rem; font-weight: bold; color: white; border: none; border-radius: 8px; cursor: pointer; -webkit-appearance: none; box-shadow: 0 3px 5px rgba(0,0,0,0.15); }
+    .btn-minus10 { background: #e53935; }
+    .btn-minus1 { background: #ef5350; }
+    .btn-plus1 { background: #26a69a; }
+    .btn-plus10 { background: #00897b; }
+    .step-btn:active { opacity: 0.8; transform: translateY(1px); }
+
+    /* システムステータス表示 */
+    #log-container { margin: 5px 0; min-height: 60px; background: #f5f5f5; padding: 8px; border-radius: 6px; border: 1px solid #cfd8dc; display: flex; align-items: center; justify-content: center; gap: 12px; }
+    #log-text { font-size: 1rem; font-weight: bold; color: #37474f; text-align: left; line-height: 1.3; }
+    .icon-box { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; }
+    
+    /* カメラ表示エリア（熱中症カメラと同一の標準ビデオ常時流し方式） */
+    .camera-wrapper { position: relative; width: 100%; max-width: 340px; margin: 5px auto; display: none; border-radius: 10px; border: 3px solid #37474f; background: #000; box-sizing: border-box; aspect-ratio: 4 / 3; overflow: hidden; }
     #video { width: 100%; height: 100%; object-fit: cover; display: block; }
-    #canvas { display: none; } /* 裏側での計算用に隠す */
+    #canvas { display: none; } /* スキャン計算用に裏で隠す */
     
-    .qr-guide-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 200px; border: 5px dashed #e67e22; border-radius: 10px; opacity: 0.9; pointer-events: none; box-sizing: border-box; transition: border-color 0.2s, background-color 0.2s; }
-    .qr-guide-overlay.success { border-color: #2ecc71; background: rgba(46, 204, 113, 0.15); }
-    .btn { color: white; padding: 14px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 8px; cursor: pointer; font-weight: bold; -webkit-appearance: none; }
+    .qr-guide-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 180px; height: 180px; border: 5px dashed #e67e22; border-radius: 10px; opacity: 0.8; pointer-events: none; box-sizing: border-box; transition: all 0.2s; }
+    .qr-guide-overlay.success { border-color: #2ecc71; background: rgba(46, 204, 113, 0.2); }
+    
+    .btn-main { color: white; padding: 14px; font-size: 1.2rem; border: none; border-radius: 10px; width: 100%; margin-top: 5px; cursor: pointer; font-weight: bold; -webkit-appearance: none; box-shadow: 0 4px 6px rgba(0,0,0,0.15); }
     #cameraBtn { background: #37474f; }
-    #nextRowBtn { background: #28a745; display: none; margin-bottom: 5px; } 
-    .history-container { margin-top: 12px; text-align: left; background: #2c3e50; color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; }
-    .history-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid #34495e; padding-bottom: 4px; color: #bdc3c7; }
-    #historyList { max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 0; margin: 0; list-style: none; }
-    #historyList li { padding: 5px 0; border-bottom: 1px solid #34495e; line-height: 1.3; }
+    #nextRowBtn { background: #607d8b; display: none; margin-bottom: 5px; } 
+    
+    /* 履歴エリア */
+    .history-container { margin-top: 10px; text-align: left; background: #2c3e50; color: white; padding: 10px; border-radius: 8px; box-sizing: border-box; }
+    .history-title { font-size: 0.85rem; font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid #34495e; padding-bottom: 4px; color: #bdc3c7; }
+    #historyList { max-height: 130px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 0; margin: 0; list-style: none; }
+    #historyList li { padding: 4px 0; border-bottom: 1px solid #34495e; line-height: 1.3; }
     .history-ok { color: #2ecc71; }
     .history-ng { color: #e74c3c; }
     .history-wait { color: #f1c40f; }
-    .version-info { margin-top: 10px; font-size: 0.7rem; color: #7f8c8d; text-align: center; }
-    .nav-link { display: block; margin-top: 15px; color: #1a73e8; text-decoration: none; font-size: 0.95rem; font-weight: bold; }
+    .version-info { margin-top: 8px; font-size: 0.7rem; color: #7f8c8d; text-align: center; }
+    .nav-link { display: block; margin-top: 12px; color: #1a73e8; text-decoration: none; font-size: 0.95rem; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -61,41 +70,51 @@
     <button id="langViBtn" class="lang-btn" onclick="changeLanguage('vi')">🇻🇳 Tiếng Việt</button>
   </div>
 
-  <div class="top-info">
-    <span id="status">👤 作業者: 判定中...</span>
-    <span id="sheet-info" class="worker-badge">端末1 シート</span>
-  </div>
+  <div class="location-box">
+    <div class="loc-title"><span id="txt-select-wh">① 倉庫を選択</span></div>
+    <div class="btn-grid" id="wh-grid-container">
+      <button class="grid-btn active" onclick="selectWarehouse(1)">1</button>
+      <button class="grid-btn" onclick="selectWarehouse(2)">2</button>
+      <button class="grid-btn" onclick="selectWarehouse(3)">3</button>
+      <button class="grid-btn" onclick="selectWarehouse(4)">4</button>
+      <button class="grid-btn" onclick="selectWarehouse(5)">5</button>
+      <button class="grid-btn" onclick="selectWarehouse(6)">6</button>
+      <button class="grid-btn" onclick="selectWarehouse(7)">7</button>
+      <button class="grid-btn" onclick="selectWarehouse(8)">8</button>
+      <button class="grid-btn" onclick="selectWarehouse(9)">9</button>
+    </div>
 
-  <div class="direction-area">
-    <button id="btnDesc" class="dir-btn" onclick="setDirection('desc')"><span class="big-arrow">⬇️</span><span id="text-desc-label">奥から手前へ</span></button>
-    <button id="btnAsc" class="dir-btn" onclick="setDirection('asc')"><span class="big-arrow">⬆️</span><span id="text-asc-label">手前から奥へ</span></button>
-  </div>
+    <div class="loc-title"><span id="txt-select-lr">② 左右を選択</span></div>
+    <div class="btn-grid">
+      <button id="btn-left" class="grid-btn active-lr" onclick="selectLR('左側')">⬅️ 左側 (Left)</button>
+      <button id="btn-right" class="grid-btn" onclick="selectLR('右側')">右側 (Right) ➡️</button>
+    </div>
 
-  <div id="manual-nav">
-    <span style="font-size:0.8rem; color:#666;">テスト用切り替え:</span>
-    <button onclick="changeWorkerManually('A')" style="background:#1a73e8; color:white; border:none; padding:4px 8px; border-radius:3px;">員A</button>
-    <button onclick="changeWorkerManually('B')" style="background:#28a745; color:white; border:none; padding:4px 8px; border-radius:3px;">員B</button>
-    <button onclick="changeWorkerManually('C')" style="background:#e67e22; color:white; border:none; padding:4px 8px; border-radius:3px;">員C</button>
-  </div>
-
-  <div class="input-area">
-    <label id="lbl-memo" for="memoInput">📍 位置コード:</label>
-    <input type="text" id="memoInput" placeholder="例: A-1、B-10 など">
+    <div class="loc-title"><span id="txt-select-row">③ 列（ブロック）番号の調整</span></div>
+    <div class="current-loc-display">
+      <div class="current-loc-text" id="lbl-current-full-loc">1号倉庫 - 左側 - 1列目</div>
+    </div>
+    <div class="step-control-row">
+      <button class="step-btn btn-minus10" onclick="adjustRow(-10)">-10</button>
+      <button class="step-btn btn-minus1" onclick="adjustRow(-1)">-1</button>
+      <button class="step-btn btn-plus1" onclick="adjustRow(1)">+1</button>
+      <button class="step-btn btn-plus10" onclick="adjustRow(10)">+10</button>
+    </div>
   </div>
   
   <div id="log-container">
-    <div id="log-icon" class="icon-box">📷</div>
+    <div id="log-icon" class="icon-box">🔍</div>
     <div id="log-text">最初にカメラを起動してください</div>
   </div>
 
-  <button id="cameraBtn" onclick="startCamera()" class="btn">📷 カメラを起動する</button>
+  <button id="cameraBtn" onclick="startCamera()" class="btn-main">📸 カメラを起動する</button>
 
   <div class="camera-wrapper" id="cameraWrapper">
     <video id="video" autoplay playsinline muted></video>
     <div id="guideOverlay" class="qr-guide-overlay"></div>
   </div>
   
-  <button id="nextRowBtn" onclick="moveToNextRowManual()" class="btn">⏭️ 空白のまま次の位置へ進む</button>
+  <button id="nextRowBtn" onclick="moveToNextRowManual()" class="btn-main">⏭️ 空白のまま今の位置をスキップ</button>
   
   <div class="history-container">
     <div id="lbl-history-title" class="history-title">⏱ 履歴</div>
@@ -105,42 +124,54 @@
   </div>
 
   <a href="search.html" class="nav-link">🗺️ 倉庫マップ図面・在庫検索を開く</a>
-  
   <div id="version" class="version-info"></div>
 </div>
 
 <canvas id="canvas"></canvas>
 
 <script>
-  const VERSION_TEXT = "バージョン: Ver 1.85 (カメラ映像標準高速化版)";
+  const VERSION_TEXT = "バージョン: Ver 1.90 (ロケーション選択UI・カメラサクサク版)";
   
-  // ★ここにGASのウェブアプリURLを貼り付けてください
+  // ★GASのウェブアプリURLをここに貼り付けてください
   const GAS_URL = "https://script.google.com/macros/s/AKfycbwn8KmXLdJFWUG3zRi_HJrGvlcuKIut0od8Dzv-AO5vOjM2puq9IdpBbI_k_IXlyAkD/exec";
 
   let video, canvasElement, canvas;
-  let guideOverlay, logContainer, logIcon, logText, statusDiv, sheetInfoSpan, cameraWrapper, historyList, memoInput, manualNav, nextRowBtn;
+  let guideOverlay, logContainer, logIcon, logText, cameraWrapper, historyList, nextRowBtn;
   
-  let workerParam, langParam;
-  let currentBoxNumber = 1;
-  let currentStartColumn = 1; 
-  let workerName = "作業員A";
+  // 選択中の位置管理用変数
+  let selectedWarehouse = 1;
+  let selectedLR = "左側";
+  let selectedRow = 1;
 
   let sendQueue = [];       
   let isSending = false;    
   let lastScannedData = "";
   let lastScannedTime = 0;
-  let currentDirection = "desc"; 
-
   let scanCount = 0;
   let currentLang = "ja";
   let localStream = null;
 
+  // 多言語文言設定
   const i18n = {
     ja: {
-      worker: "👤 作業者: ", badge: "端末", desc_btn: "奥から手前へ", asc_btn: "手前から奥へ", loc_lbl: "📍 位置コード:", placeholder: "例: A-1、B-10 など", init_cam: "最初にカメラを起動してください", start_cam_btn: "📷 カメラを起動する", next_row_btn: "⏭️ 空白のまま次の位置へ進む", history_title: "⏱ 履歴 (一括リアルタイム通信版)", history_empty: "履歴はここに表示されます", scan_ok: "スキャン完了！保存しました", dup_err: "同じQRコードを検出（弾きました）", cam_guide: "枠内にQRコードを映してください<br><small>現在の方向: ", cam_sending: "GASへまとめて一括送信中...", cam_waiting: "送信待ちデータが {count} 件あります", log_mode_desc: "🔄 モード切替: 【奥から手前】", log_mode_asc: "🔄 モード切替: 【手前から奥】", log_worker_change: "➔ テスト用切り替え: {name}", log_skip: "⏭️ スキップ: 次の位置へ進みます", log_hold: "📥 保持: ", log_sync_ok: "✓ 送信完了: {count} 件データを同期しました", log_sync_err: "⚠️ 通信エラー：再試行します", arrow_desc: "⬇️奥から手前", arrow_asc: "⬆️手前から奥", workerA: "作業員A", workerB: "作業員B", workerC: "作業員C"
+      t_wh: "① 倉庫を選択", t_lr: "② 左右を選択", t_row: "③ 列（ブロック）番号の調整",
+      init_cam: "最初にカメラを起動してください", start_cam_btn: "📸 カメラを起動する", next_row_btn: "⏭️ 空白のまま今の位置をスキップ",
+      history_title: "⏱ 履歴 (リアルタイム一括同期版)", history_empty: "履歴はここに表示されます",
+      scan_ok: "スキャン完了！保存しました", dup_err: "同じQRコードを検出（スキップしました）",
+      cam_guide: "枠内にQRコードを映してください", cam_sending: "GASへ一括自動送信中...", cam_waiting: "送信待ちデータが {count} 件あります",
+      log_skip: "⏭️ スキップ: 空白データを送信キューに入れました", log_hold: "📥 保持: ",
+      log_sync_ok: "✓ 送信完了: {count} 件データを同期しました", log_sync_err: "⚠️ 通信エラー：再試行します",
+      unit_wh: "号倉庫", unit_row: "列目", left: "左側", right: "右側"
     },
     vi: {
-      worker: "👤 Người làm: ", badge: "Thiết bị ", desc_btn: "Từ Trong ra Ngoài", asc_btn: "Từ Ngoài vào Trong", loc_lbl: "📍 Mã vị trí:", placeholder: "Ví dụ: A-1, B-10...", init_cam: "Vui lòng bật máy ảnh trước", start_cam_btn: "📷 Bật máy ảnh", next_row_btn: "⏭️ Bỏ qua vị trí này (Để trống)", history_title: "⏱ Lịch sử quét", history_empty: "Lịch sử quét sẽ hiển thị ở đây", scan_ok: "Quét thành công! Đang lưu", dup_err: "Phát hiện mã QR trùng lặp (Đã bỏ qua)", cam_guide: "Vui lòng đưa mã QR vào khung<br><small>Hướng hiện tại: ", cam_sending: "Đang đồng bộ dữ liệu...", cam_waiting: "Có {count} dữ liệu đang chờ gửi", log_mode_desc: "🔄 Chuyển chế độ: 【Từ Trong ra Ngoài】", log_mode_asc: "🔄 Chuyển chế độ: 【Từ Ngoài vào Trong】", log_worker_change: "➔ Chuyển đổi thử nghiệm: {name}", log_skip: "⏭️ Bỏ qua: Đi đến vị trí tiếp theo", log_hold: "📥 Đang giữ: ", log_sync_ok: "✓ Đã gửi thành công: {count} dữ liệu", log_sync_err: "⚠️ Lỗi kết nối: Sẽ thử lại", arrow_desc: "⬇️Trong ra Ngoài", arrow_asc: "Ngoài vào Trong", workerA: "Người làm A", workerB: "Người làm B", workerC: "Người làm C"
+      t_wh: "① Chọn kho (Warehouse)", t_lr: "② Chọn bên (Left / Right)", t_row: "③ Điều chỉnh số hàng (Block row)",
+      init_cam: "Vui lòng bật máy ảnh trước", start_cam_btn: "📸 Bật máy ảnh", next_row_btn: "⏭️ Bỏ qua vị trí này (Để trống)",
+      history_title: "⏱ Lịch sử quét dữ liệu", history_empty: "Lịch sử quét sẽ hiển thị ở đây",
+      scan_ok: "Quét thành công! Đang lưu", dup_err: "Phát hiện mã QR trùng lặp (Đã bỏ qua)",
+      cam_guide: "Vui lòng đưa mã QR vào khung", cam_sending: "Đang đồng bộ dữ liệu...", cam_waiting: "Có {count} dữ liệu đang chờ gửi",
+      log_skip: "⏭️ Bỏ qua: Đã thêm dữ liệu trống vào hàng đợi", log_hold: "📥 Đang giữ: ",
+      log_sync_ok: "✓ Đã gửi thành công: {count} dữ liệu", log_sync_err: "⚠️ Lỗi kết nối: Sẽ thử lại",
+      unit_wh: "Kho số ", unit_row: "Hàng số ", left: "Bên Trái", right: "Bên Phải"
     }
   };
 
@@ -153,65 +184,79 @@
     logContainer = document.getElementById("log-container");
     logIcon = document.getElementById("log-icon");
     logText = document.getElementById("log-text");
-    statusDiv = document.getElementById("status");
-    sheetInfoSpan = document.getElementById("sheet-info");
     cameraWrapper = document.getElementById("cameraWrapper");
     historyList = document.getElementById("historyList");
-    memoInput = document.getElementById("memoInput");
-    manualNav = document.getElementById("manual-nav");
     nextRowBtn = document.getElementById("nextRowBtn");
     
-    workerParam = new URLSearchParams(window.location.search).get('worker');
-    langParam = new URLSearchParams(window.location.search).get('lang'); 
-
-    initWorkerSettings();
-    setDirection("desc"); 
+    updateLocationDisplay();
+    changeLanguage('ja');
     document.getElementById("version").innerText = VERSION_TEXT;
     setInterval(processQueueBulk, 3000);
   });
 
-  function initWorkerSettings() {
-    if (langParam && langParam.toLowerCase() === "vi") { currentLang = "vi"; } else { currentLang = "ja"; }
-    updateScreenLanguage();
-    if (workerParam) { workerParam = workerParam.toUpperCase(); manualNav.style.display = "none"; } else { workerParam = "A"; manualNav.style.display = "flex"; }
-    if (workerParam === "B") { currentBoxNumber = 2; currentStartColumn = 6; workerName = i18n[currentLang].workerB; } 
-    else if (workerParam === "C") { currentBoxNumber = 3; currentStartColumn = 11; workerName = i18n[currentLang].workerC; } 
-    else { currentBoxNumber = 1; currentStartColumn = 1; workerName = i18n[currentLang].workerA; }
-    statusDiv.innerHTML = i18n[currentLang].worker + workerName;
-    sheetInfoSpan.innerHTML = i18n[currentLang].badge + currentBoxNumber + (currentLang === "ja" ? " シート" : "");
+  // 倉庫選択
+  function selectWarehouse(num) {
+    selectedWarehouse = num;
+    const buttons = document.querySelectorAll("#wh-grid-container .grid-btn");
+    buttons.forEach((btn, idx) => {
+      if ((idx + 1) === num) { btn.classList.add("active"); } else { btn.classList.remove("active"); }
+    });
+    updateLocationDisplay();
+  }
+
+  // 左右選択
+  function selectLR(side) {
+    selectedLR = side;
+    const btnLeft = document.getElementById("btn-left");
+    const btnRight = document.getElementById("btn-right");
+    if (side === "左側") {
+      btnLeft.classList.add("active-lr"); btnRight.classList.remove("active-lr");
+    } else {
+      btnLeft.classList.remove("active-lr"); btnRight.classList.add("active-lr");
+    }
+    updateLocationDisplay();
+  }
+
+  // 列の調整（プラマイボタン）
+  function adjustRow(amount) {
+    selectedRow += amount;
+    if (selectedRow < 1) selectedRow = 1; // 1未満にはならないストッパー
+    updateLocationDisplay();
+  }
+
+  // 表示の更新（スプシ送信用文字列の組み立て）
+  function updateLocationDisplay() {
+    const displayElement = document.getElementById("lbl-current-full-loc");
+    const whText = currentLang === "ja" ? `${selectedWarehouse}${i18n[currentLang].unit_wh}` : `${i18n[currentLang].unit_wh}${selectedWarehouse}`;
+    const lrText = selectedLR === "左側" ? i18n[currentLang].left : i18n[currentLang].right;
+    const rowText = currentLang === "ja" ? `${selectedRow}${i18n[currentLang].unit_row}` : `${i18n[currentLang].unit_row}${selectedRow}`;
+    
+    displayElement.innerText = `${whText} - ${lrText} - ${rowText}`;
+  }
+
+  // スプシ書き込み用の一意な位置コードを生成する関数
+  function generateLocationCode() {
+    const sideCode = selectedLR === "左側" ? "左" : "右";
+    // スプシに「3号-右-17」のようなシンプルでわかりやすい形式で送るよう結合します
+    return `${selectedWarehouse}号-${sideCode}-${selectedRow}`;
   }
 
   function changeLanguage(lang) {
     currentLang = lang;
     document.getElementById("langJaBtn").className = (lang === 'ja') ? "lang-btn active" : "lang-btn";
     document.getElementById("langViBtn").className = (lang === 'vi') ? "lang-btn active" : "lang-btn";
-    if (workerParam === "B") workerName = i18n[currentLang].workerB;
-    else if (workerParam === "C") workerName = i18n[currentLang].workerC;
-    else workerName = i18n[currentLang].workerA;
-    updateScreenLanguage();
-    statusDiv.innerHTML = i18n[currentLang].worker + workerName;
-    sheetInfoSpan.innerHTML = i18n[currentLang].badge + currentBoxNumber + (currentLang === "ja" ? " シート" : "");
-  }
-
-  function updateScreenLanguage() {
-    const t = i18n[currentLang];
-    document.getElementById("text-desc-label").innerText = t.desc_btn; document.getElementById("text-asc-label").innerText = t.asc_btn;
-    document.getElementById("lbl-memo").innerText = t.loc_lbl; document.getElementById("memoInput").placeholder = t.placeholder;
-    document.getElementById("cameraBtn").innerText = t.start_cam_btn; document.getElementById("nextRowBtn").innerText = t.next_row_btn;
-    document.getElementById("lbl-history-title").innerText = t.history_title;
-    if(document.getElementById("lbl-history-empty")) { document.getElementById("lbl-history-empty").innerText = t.history_empty; }
-    if(video && video.srcObject == null) { logText.innerText = t.init_cam; }
-  }
-
-  function setDirection(dir) {
-    currentDirection = dir;
-    if (dir === "desc") {
-      document.getElementById("btnDesc").className = "dir-btn active-desc"; document.getElementById("btnAsc").className = "dir-btn";
-      document.body.className = "mode-desc"; addHistoryLog(i18n[currentLang].log_mode_desc, "wait");
-    } else {
-      document.getElementById("btnDesc").className = "dir-btn"; document.getElementById("btnAsc").className = "dir-btn active-asc";
-      document.body.className = "mode-asc"; addHistoryLog(i18n[currentLang].log_mode_asc, "wait");
-    }
+    
+    document.getElementById("txt-select-wh").innerText = i18n[lang].t_wh;
+    document.getElementById("txt-select-lr").innerText = i18n[lang].t_lr;
+    document.getElementById("txt-select-row").innerText = i18n[lang].t_row;
+    document.getElementById("cameraBtn").innerText = i18n[lang].start_cam_btn;
+    document.getElementById("nextRowBtn").innerText = i18n[lang].next_row_btn;
+    document.getElementById("lbl-history-title").innerText = i18n[lang].history_title;
+    
+    if(document.getElementById("lbl-history-empty")) { document.getElementById("lbl-history-empty").innerText = i18n[lang].history_empty; }
+    if(video && video.srcObject == null) { logText.innerText = i18n[lang].init_cam; }
+    
+    updateLocationDisplay();
   }
 
   function speakCount(number) {
@@ -224,36 +269,27 @@
   }
 
   function parseQrContent(rawText) {
-    let modelCode = "";
-    let serialNumber = "";
+    let modelCode = ""; let serialNumber = "";
     const parts = rawText.replace(/[\s　]+/g, " ").trim().split(" ");
-    
     if (parts.length >= 8) {
-      modelCode = parts[5]; 
-      serialNumber = parts[6].replace("機番", ""); 
+      modelCode = parts[5]; serialNumber = parts[6].replace("機番", ""); 
     } else {
-      modelCode = parts[0] || "";
-      serialNumber = rawText.substring(0, 10);
+      modelCode = parts[0] || ""; serialNumber = rawText.substring(0, 10);
     }
     return { modelCode, serialNumber };
   }
 
+  // スキップボタンが押された時
   function moveToNextRowManual() {
     const now = Date.now();
-    if (lastScannedTime > 0 && (now - lastScannedTime) >= 5000) { scanCount = 0; }
     lastScannedTime = now; lastScannedData = ""; triggerVibrate(); 
     addHistoryLog(i18n[currentLang].log_skip, "wait");
     
     const clientTimeStr = getFormattedDate();
-    let userMemo = memoInput.value.trim();
-    if (userMemo !== "") { userMemo = userMemo + "@" + currentDirection.toUpperCase(); }
+    const locCode = generateLocationCode(); // 例：「3号-右-1」
     
-    sendQueue.push({ qrValue: "（空白スキップ）", modelCode: "（空白）", serialNumber: "（空白）", col: currentStartColumn, clientTime: clientTimeStr, memo: userMemo });
-  }
-
-  function changeWorkerManually(type) {
-    workerParam = type; initWorkerSettings(); lastScannedData = ""; 
-    addHistoryLog(i18n[currentLang].log_worker_change.replace("{name}", workerName), "wait");
+    // 常に1シート目（カラム1番）に書き込む初期設定
+    sendQueue.push({ qrValue: "（空白スキップ）", modelCode: "（空白）", serialNumber: "（空白）", col: 1, clientTime: clientTimeStr, memo: locCode });
   }
 
   function getFormattedDate() {
@@ -279,6 +315,7 @@
     if (navigator.vibrate) { navigator.vibrate(0); setTimeout(() => { navigator.vibrate([120]); }, 10); }
   }
 
+  // カメラ起動（熱中症カメラベースの一新方式）
   async function startCamera() {
     logText.innerHTML = "Camera starting...";
     if (localStream) {
@@ -286,7 +323,7 @@
     }
 
     try {
-      // 熱中症記録カメラと同じ標準的な環境カメラ指定。負荷を下げるために解像度サイズも最適化
+      // 映像プレビュー負荷を劇的に下げる理想値を設定
       const constraints = { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStream = stream;
@@ -296,25 +333,23 @@
       cameraWrapper.style.display = "block"; 
       nextRowBtn.style.display = "block";
       
-      // カメラが安定して動き出すのを確認してから解析ループを開始
       video.onloadedmetadata = () => {
         requestAnimationFrame(autoScanLoop);
       };
     } catch (err) { 
       console.error(err);
-      alert("カメラの起動に失敗しました。ブラウザのカメラ権限を許可するか、一度ページを再読み込みしてください。"); 
+      alert("カメラの起動に失敗しました。SafariやChromeブラウザ等で開き直してください。"); 
       logText.innerHTML = "⚠️ カメラの起動エラー";
     }
   }
 
+  // 解析ループ
   function autoScanLoop() {
-    // videoが再生中の時だけ、裏に隠したcanvasを使って高速にQR判定を行う
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      canvasElement.width = 640; // 解析用は小さなサイズに落として計算負荷を激減させる
+      canvasElement.width = 640; // 解析用のみ小さなサイズに縮小してスマホのCPU不可を激減させる
       canvasElement.height = 480;
       canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
       
-      // 中央付近を切り出して高速スキャン
       const cropSize = Math.min(canvasElement.width, canvasElement.height) * 0.7;
       const cropX = (canvasElement.width - cropSize) / 2; 
       const cropY = (canvasElement.height - cropSize) / 2;
@@ -324,11 +359,10 @@
       if (code && code.data.trim() !== "") {
         const now = Date.now();
         if (code.data === lastScannedData && (now - lastScannedTime) < 3000) {
-          logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "⏳"; logIcon.className = "icon-box"; 
+          logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "⏳"; 
           logText.innerHTML = i18n[currentLang].dup_err;
           if (now - lastScannedTime > 2500) { triggerVibrate(); }
         } else {
-          if (lastScannedTime > 0 && (now - lastScannedTime) >= 5000) { scanCount = 0; }
           lastScannedData = code.data; lastScannedTime = now;
           triggerVibrate();
           scanCount++;
@@ -336,39 +370,37 @@
           
           const parsed = parseQrContent(code.data);
           const clientTimeStr = getFormattedDate();
+          const locCode = generateLocationCode(); // 現在選択中のロケーションコード
 
           guideOverlay.classList.add("success");
-          logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📷"; logIcon.className = "icon-box icon-bounce";
+          logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📷"; 
           logText.style.color = "#28a745"; logText.innerHTML = i18n[currentLang].scan_ok + " (No." + scanCount + ")";
           setTimeout(() => { guideOverlay.classList.remove("success"); }, 400);
-
-          let userMemo = memoInput.value.trim();
-          if (userMemo !== "") { userMemo = userMemo + "@" + currentDirection.toUpperCase(); }
 
           sendQueue.push({ 
             qrValue: code.data, 
             modelCode: parsed.modelCode,       
             serialNumber: parsed.serialNumber, 
-            col: currentStartColumn, 
+            col: 1, // 常に1列目スタート設定
             clientTime: clientTimeStr, 
-            memo: userMemo 
+            memo: locCode 
           });
           
-          const displayDir = currentDirection === "desc" ? (currentLang === 'ja' ? "奥" : "Trong") : (currentLang === 'ja' ? "手前" : "Ngoài");
-          addHistoryLog(i18n[currentLang].log_hold + parsed.modelCode + " / " + parsed.serialNumber + " (" + displayDir + ") [No." + scanCount + "]", "wait");
+          addHistoryLog(i18n[currentLang].log_hold + parsed.modelCode + " / " + parsed.serialNumber + " [" + locCode + "]", "wait");
         }
-      } else { diagnoseImageError(imageData); }
+      } else { diagnoseImageError(); }
     }
     requestAnimationFrame(autoScanLoop);
   }
 
-  function diagnoseImageError(imageData) {
-    if (isSending) { logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "🚀"; logIcon.className = "icon-box icon-bounce"; logText.style.color = "#e67e22"; logText.innerHTML = i18n[currentLang].cam_sending; return; }
-    if (sendQueue.length > 0) { logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📥"; logIcon.className = "icon-box"; logText.style.color = "#1a73e8"; logText.innerHTML = i18n[currentLang].cam_waiting.replace("{count}", sendQueue.length); return; }
-    const arrowText = currentDirection === "desc" ? i18n[currentLang].arrow_desc : i18n[currentLang].arrow_asc;
-    logContainer.style.background = "#ffffff"; logIcon.innerHTML = "🔍"; logIcon.className = "icon-box icon-zoom"; logText.style.color = "#d35400"; logText.innerHTML = i18n[currentLang].cam_guide + arrowText + "</small>";
+  function diagnoseImageError() {
+    if (isSending) { logContainer.style.background = "#fff3cd"; logIcon.innerHTML = "🚀"; logText.style.color = "#e67e22"; logText.innerHTML = i18n[currentLang].cam_sending; return; }
+    if (sendQueue.length > 0) { logContainer.style.background = "#e8f5e9"; logIcon.innerHTML = "📥"; logText.style.color = "#1a73e8"; logText.innerHTML = i18n[currentLang].cam_waiting.replace("{count}", sendQueue.length); return; }
+    
+    logContainer.style.background = "#ffffff"; logIcon.innerHTML = "🔍"; logText.style.color = "#37474f"; logText.innerHTML = i18n[currentLang].cam_guide;
   }
 
+  // GASへの送信処理
   function processQueueBulk() {
     if (isSending || sendQueue.length === 0) return;
     isSending = true;
