@@ -16,25 +16,28 @@
     .result-item:last-child { border-bottom: none; }
     .result-item.active { background: #e3f2fd; font-weight: bold; border-left: 4px solid #1a73e8; }
     
-    /* 可変型に対応した倉庫マップ外枠。列数が増えた場合は縦スクロールできるよう自動調整にします */
-    .warehouse-map { position: relative; width: 100%; max-width: 360px; height: 500px; margin: 10px auto; background: #fafafa; border: 3px solid #34495e; border-radius: 8px; box-sizing: border-box; overflow-y: auto; overflow-x: hidden; }
+    /* 倉庫マップ外枠：出入口を下部に固定し、棚エリア（上側）が可変スクロールします */
+    .warehouse-map { position: relative; width: 100%; max-width: 360px; height: 500px; margin: 10px auto; background: #fafafa; border: 3px solid #34495e; border-radius: 8px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
     
-    /* 固定パーツの配置調整 */
-    .gate-bar { width: 100%; background: #eaeaea; padding: 8px 0; border-bottom: 2px solid #cfd8dc; font-weight: bold; color: #7f8c8d; font-size: 0.85rem; }
+    /* 棚を表示するエリア（ここだけが列数に応じて縦スクロールする） */
+    .map-scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; padding: 10px; box-sizing: border-box; }
     
-    /* マップのベースコンテナ（左右のサイドブロックと中央の通路） */
-    .map-grid-container { display: flex; position: relative; width: 100%; padding: 10px; box-sizing: border-box; min-height: 440px; }
+    /* マップのベースコンテナ（手前が下になるよう flex-direction: column-reverse を採用） */
+    .map-grid-container { display: flex; position: relative; width: 100%; min-height: 400px; }
     .aisle { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); width: 44px; border-left: 2px dashed #b0bec5; border-right: 2px dashed #b0bec5; background: #f1f2f6; z-index: 1; }
     .aisle-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(90deg); color: #95a5a6; font-size: 0.9rem; letter-spacing: 4px; font-weight: bold; white-space: nowrap; }
     
-    /* 左右のブロック。列数が何個になっても等間隔で縦に綺麗に並べます */
-    .side-block { width: 42%; display: flex; flex-direction: column; gap: 6px; z-index: 2; }
+    /* 左右のブロック（column-reverseで、配列の1番目が一番下に描画されるようにします） */
+    .side-block { width: 42%; display: flex; flex-direction: column-reverse; gap: 6px; z-index: 2; }
     .side-block-left { margin-right: auto; }
     .side-block-right { margin-left: auto; }
     
     /* 1つのブロック（マス）のデザイン */
     .shelf-slot { height: 45px; border: 2px solid #7f8c8d; background: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold; color: #7f8c8d; border-radius: 6px; position: relative; box-sizing: border-box; transition: all 0.2s; }
     .shelf-slot.highlight { border-color: #e67e22; background: #fff5e6; color: #e67e22; font-size: 0.9rem; box-shadow: inset 0 0 8px rgba(230,126,34,0.2); }
+    
+    /* 下部に固定する出入口バー */
+    .gate-bar { width: 100%; background: #eaeaea; padding: 10px 0; border-top: 2px solid #cfd8dc; font-weight: bold; color: #7f8c8d; font-size: 0.85rem; z-index: 5; }
     
     /* 点滅する赤い現在地ピン */
     .pin { position: absolute; width: 24px; height: 24px; background: #e74c3c; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.4); display: none; z-index: 10; animation: pulse 1.2s infinite; pointer-events: none; }
@@ -59,17 +62,19 @@
     <div style="color:#aaa; text-align:center; padding:20px;">ここに検索結果が出ます</div>
   </div>
 
-  <div class="warehouse-map" id="warehouseMapContainer">
-    <div class="gate-bar">🚪 出入口 (奥方向へ連番)</div>
+  <div class="warehouse-map">
     
-    <div class="map-grid-container">
-      <div class="aisle"><span class="aisle-text">通路</span></div>
-      
-      <div class="side-block side-block-left" id="leftSide"></div>
-      <div class="side-block side-block-right" id="rightSide"></div>
+    <div class="map-scroll-area" id="mapScrollArea">
+      <div class="map-grid-container">
+        <div class="aisle"><span class="aisle-text">通路</span></div>
+        
+        <div class="side-block side-block-left" id="leftSide"></div>
+        <div class="side-block side-block-right" id="rightSide"></div>
+      </div>
+      <div class="pin" id="mapPin"></div>
     </div>
     
-    <div class="pin" id="mapPin"></div>
+    <div class="gate-bar">🚪 出入口 (手前から奥方向へ連番)</div>
   </div>
 
   <a href="index.html" class="nav-link">📷 QRスキャン画面に戻る</a>
@@ -87,7 +92,6 @@
       .then(data => {
         allStockData = data;
         document.getElementById("statusMsg").innerText = "✓ 最新の在庫データを同期しました。";
-        // 最初はデフォルトで5列分の枠を作っておく
         generateMapGrid(5);
       })
       .catch(err => {
@@ -96,7 +100,7 @@
       });
   };
 
-  // 【最重要】最大列数を自動判断して、HTMLのマス目をダイナミックに生成する関数
+  // マス目をダイナミックに生成（下が1列目、上が奥になるよう配置）
   function generateMapGrid(maxRow) {
     const leftSide = document.getElementById("leftSide");
     const rightSide = document.getElementById("rightSide");
@@ -104,7 +108,6 @@
     leftSide.innerHTML = "";
     rightSide.innerHTML = "";
     
-    // 出入口が上部になったため、1列目（手前）から順番に下に並べます
     for (let i = 1; i <= maxRow; i++) {
       // 左側の枠作成
       const slotL = document.createElement("div");
@@ -122,10 +125,8 @@
     }
   }
 
-  // 位置情報文字列から「何列目」の数字を取り出すヘルパー関数
   function parseRowNumber(locStr) {
     if (!locStr) return 0;
-    // 「3号-右-17」のハイフンで区切られた3番目の要素、または「17列目」という文字から数字を抽出
     const parts = locStr.split("-");
     if (parts.length >= 3) {
       return parseInt(parts[2], 10) || 0;
@@ -161,16 +162,12 @@
     statusMsg.innerText = `💡 ${matched.length} 件見つかりました。タップで位置を表示`;
     resultList.innerHTML = "";
     
-    // 見つかったデータの中から、最大の列数を自動スキャンして見つけ出します
-    let detectedMaxRow = 5; // 最低表示ライン
+    let detectedMaxRow = 5; 
     matched.forEach(item => {
       const rowNum = parseRowNumber(item.loc);
-      if (rowNum > detectedMaxRow) {
-        detectedMaxRow = rowNum;
-      }
+      if (rowNum > detectedMaxRow) { detectedMaxRow = rowNum; }
     });
     
-    // 検出した最大列数でマップを再構築（例：17なら17行のマップに自動変形）
     generateMapGrid(detectedMaxRow);
 
     matched.forEach((item, index) => {
@@ -200,18 +197,15 @@
     items.forEach(i => i.classList.remove('active'));
     if(element) element.classList.add('active');
     
-    // 一度ハイライトをクリア
     const slots = document.querySelectorAll('.shelf-slot');
     slots.forEach(s => { 
       s.classList.remove('highlight'); 
       s.innerText = s.innerText.replace("★ ", ""); 
     });
 
-    // 「右」か「左」かを判別
     const isRight = item.loc.includes("右側") || item.loc.includes("-右-");
     const side = isRight ? "R" : "L";
     
-    // 対象の列番号を取得
     const slotNumber = parseRowNumber(item.loc);
     if (slotNumber === 0) return;
 
@@ -225,21 +219,19 @@
       const pin = document.getElementById("mapPin");
       pin.style.display = "block";
       
-      // スクロール対応したピンの絶対位置計算
-      const mapContainer = document.getElementById("warehouseMapContainer");
+      const scrollArea = document.getElementById("mapScrollArea");
       
-      // 対象のスロットの位置までマップを自動スクロールさせて視認性を上げます
+      // 対象の列が画面に見える位置までスルスルと自動スクロール
       targetSlot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       
-      // スクロール完了後にピンが正しい位置に吸い付くよう、わずかに遅延して座標をセット
       setTimeout(() => {
-        const mapRect = mapContainer.getBoundingClientRect();
+        const scrollRect = scrollArea.getBoundingClientRect();
         const slotRect = targetSlot.getBoundingClientRect();
         
-        // コンテナのスクロール量を考慮してピンの配置を決定
-        pin.style.left = (slotRect.left - mapRect.left + (slotRect.width / 2) - 12) + "px";
-        pin.style.top = (slotRect.top - mapRect.top + mapContainer.scrollTop + (slotRect.height / 2) - 12) + "px";
-      }, 200);
+        // スクロールエリア内での位置を正しく計算してピンを吸い付かせます
+        pin.style.left = (slotRect.left - scrollRect.left + (slotRect.width / 2) - 12) + "px";
+        pin.style.top = (slotRect.top - scrollRect.top + scrollArea.scrollTop + (slotRect.height / 2) - 12) + "px";
+      }, 250);
     }
   }
 
